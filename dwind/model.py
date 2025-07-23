@@ -7,7 +7,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from dwind import Configuration, helper, resource, scenarios, valuation, btm_sizing
+from dwind import Configuration, resource, scenarios, valuation, btm_sizing
+from dwind.utils import array
 
 
 # POTENTIALLY DANGEROUS!
@@ -34,11 +35,61 @@ class Agents:
         either a pickle file (.pkl or .pickle) or a parquet file (.pqt or .parquet).
     """
 
-    def __init__(self, agent_file: str | Path):
+    def __init__(
+        self,
+        agent_file: str | Path,
+        sector: str | None = None,
+        model_config: str | Path | None = None,
+        *,
+        resource_year: int = 2018,
+    ):
         self.agent_file = Path(agent_file).resolve()
-        self.load_agents()
+        self.sector = sector
+        self.config = model_config
+        self.resource_year = resource_year
+        self._load_agents()
 
-    def load_agents(self):
+    @classmethod
+    def load_and_prepare_agents(
+        cls,
+        agent_file: str | Path,
+        sector: str,
+        model_config: str | Path,
+        *,
+        save_results: bool = False,
+        file_name: str | Path | None = None,
+    ) -> pd.DataFrame:
+        """Load and prepare the agent files to run through ``Model``.
+
+        Args:
+            agent_file (str | Path): The full file path of the agent parquet, CSV, or pickle data.
+            save_results (bool, optional): True to save any updates to the data. Defaults to False.
+            file_name (str | Path | None, optional): The file path and name for where to save the
+                prepared data, if not overwriting the existing agent data. Defaults to None.
+
+        Returns:
+            pd.DataFrame: The prepared agent data.
+        """
+        agents = cls(agent_file, sector, model_config)
+        agents.prepare()
+        if save_results:
+            agents.save_agents(file_name=file_name)
+        return agents.agents
+
+    @classmethod
+    def load_agents(cls, agent_file: str | Path) -> pd.DataFrame:
+        """Load the agent data without making any additional modifications.
+
+        Args:
+            agent_file (str | Path): The full file path of the agent parquet, pickle, or CSV data.
+
+        Returns:
+            pd.DataFrame: The agent data.
+        """
+        agents = cls(agent_file)
+        return agents.agents
+
+    def _load_agents(self):
         """Loads in the agent file and drops any indices."""
         suffix = self.agent_file.suffix
         if suffix in (".pqt", ".parquet"):
@@ -56,20 +107,101 @@ class Agents:
         if suffix == ".csv":
             self.agents = self.agents.reset_index(drop=True)
 
+    def prepare(self):
+        """Prepares the agent data so that it has the necessary columns required for modeling.
+
+        Steps:
+        1. Extract `state_fips` from the `fips_code` column.
+        2. If `census_tract_id` is missing, load and merge the 2020 census tracts
+          based on the `pgid` column.
+        3. Convert the 2012 rev ID to the 2018 rev id in `rev_index_wind`.
+        4. Attach the universal resource generation data.
+        """
+        self.config = Configuration(self.config)
         if "state_fips" not in self.agents.columns:
-            self.agents["state_fips"] = self.agents["fips_code"].str[:2]
+            self.agents["state_fips"] = [el[:2] for el in self.agents["fips_code"]]
 
         if "census_tract_id" not in self.agents.columns:
-            census_tracts = pd.read_csv(
-                "/projects/dwind/configs/sizing/wind/lkup_block_to_pgid_2020.csv",
-                dtype={"fips_block": str, "pgid": str},
+            self.merge_census_data()
+
+        self.update_rev_id()
+        self.merge_generation()
+
+    def save_agents(self, file_name: str | Path | None = None):
+        if file_name is None:
+            file_name = self.agent_file
+
+        suffix = file_name.suffix
+        if suffix in (".pqt", ".parquet"):
+            file_saver = self.agents.to_parquet
+        elif suffix in (".pkl", ".pickle"):
+            file_saver = self.agents.to_pickle
+        elif suffix == ".csv":
+            file_saver = self.agents.to_csv
+        else:
+            raise ValueError(
+                f"File types ending in {suffix} can't be read as pickle, parquet, or CSV"
             )
-            census_tracts["census_tract_id"] = census_tracts["fips_block"].str[:11]
-            census_tracts = census_tracts[["pgid", "census_tract_id"]]
-            census_tracts = census_tracts.drop_duplicates()
-            self.agents = self.agents.merge(census_tracts, how="left", on="pgid")
-            self.agents = self.agents.drop_duplicates(subset=["gid"])
-            self.agents = self.agents.reset_index(drop=True)
+
+        file_saver(file_name)
+
+    def merge_census_data(self):
+        census_tracts = pd.read_csv(
+            "/projects/dwind/configs/sizing/wind/lkup_block_to_pgid_2020.csv",
+            usecols=["pgid", "fips_block"],
+            dtype=str,
+        ).drop_duplicates()
+        census_tracts["census_tract_id"] = [el[:11] for el in census_tracts["fips_block"]]
+        self.agents = (
+            self.agents.merge(census_tracts, how="left", on="pgid")
+            .drop_duplicates(subset=["gid"])
+            .reset_index(drop=True)
+        )
+
+    def update_rev_id(self, resource_year="2018"):
+        """Update 2012 rev index to 2018 index."""
+        if resource_year != "2018":
+            return
+
+        index_file = "/projects/dwind/configs/rev/wind/lkup_rev_index_2012_to_2018.csv"
+        rev_index_map = (
+            pd.read_csv(index_file, usecols=["rev_index_wind_2012", "rev_index_wind_2018"])
+            .rename(columns={"rev_index_wind_2012": "rev_index_wind"})
+            .set_index("rev_index_wind")
+        )
+
+        ix_original = self.agents.index.name
+        if ix_original is None:
+            self.agents = (
+                self.agents.set_index("rev_index_wind", drop=True)
+                .join(rev_index_map, how="left")
+                .reset_index(drop=True)
+                .rename(columns={"rev_index_wind_2018": "rev_index_wind"})
+                .dropna(subset="rev_index_wind")
+            )
+        else:
+            self.agents = (
+                self.agents.reset_index(drop=False)
+                .set_index("rev_index_wind")
+                .join(rev_index_map, how="left")
+                .set_index(ix_original, drop=True)
+                .rename(columns={"rev_index_wind_2018": "rev_index_wind"})
+                .dropna(subset="rev_index_wind")
+            )
+
+    def merge_generation(self):
+        if self.resource_year != "2018":
+            return
+
+        # update 2012 rev cf/naep/aep to 2018 values
+        # self.agents = self.agents.drop(columns=["wind_naep", "wind_cf", "wind_aep"])
+        resource_potential = resource.ResourcePotential(
+            parcels=self.agents,
+            application=self.sector,
+            year=self.resource_year,
+            model_config=self.model_config,
+        )
+        self.agents = resource_potential.match_rev_summary_to_agents()
 
 
 class Model:
@@ -126,33 +258,6 @@ class Model:
 
         self.log = logging.getLogger("dwfs")
 
-    def get_gen(self, resource_year="2018"):
-        if resource_year != "2018":
-            return
-
-        # update 2012 rev index to 2018 index
-        f = "/projects/dwind/configs/rev/wind/lkup_rev_index_2012_to_2018.csv"
-        lkup = pd.read_csv(f)[["rev_index_wind_2012", "rev_index_wind_2018"]]
-
-        self.agents = (
-            self.agents.merge(
-                lkup, left_on="rev_index_wind", right_on="rev_index_wind_2012", how="left"
-            )
-            .drop(columns=["rev_index_wind", "rev_index_wind_2012"])
-            .rename(columns={"rev_index_wind_2018": "rev_index_wind"})
-            .dropna(subset="rev_index_wind")
-        )
-
-        # update 2012 rev cf/naep/aep to 2018 values
-        # self.agents = self.agents.drop(columns=["wind_naep", "wind_cf", "wind_aep"])
-        resource_potential = resource.ResourcePotential(
-            parcels=self.agents,
-            application=self.sector,
-            year=resource_year,
-            model_config=self.config,
-        )
-        self.agents = resource_potential.match_rev_summary_to_agents()
-
     def get_rates(self):
         self.agents = self.agents[~self.agents["rate_id_alias"].isna()]
         self.agents["rate_id_alias"] = self.agents["rate_id_alias"].astype(int)
@@ -173,7 +278,7 @@ class Model:
         consumption_hourly = pd.read_parquet("/projects/dwind/data/crb_consumption_hourly.pqt")
 
         consumption_hourly["scale_offset"] = 1e8
-        consumption_hourly = helper.scale_array_precision(
+        consumption_hourly = array.scale_array_precision(
             consumption_hourly, "consumption_hourly", "scale_offset"
         )
 
@@ -218,7 +323,7 @@ class Model:
             self.agents["max_demand_kw"] *= self.agents["load_multiplier"]
             self.agents = self.agents.drop(columns=["load_multiplier", "nerc_region_abbr"])
 
-        self.agents = helper.scale_array_sum(self.agents, "consumption_hourly", "load_kwh")
+        self.agents = array.scale_array_sum(self.agents, "consumption_hourly", "load_kwh")
 
     def get_nem(self):
         if self.scenario == "metering":
@@ -251,10 +356,6 @@ class Model:
                 ] = "net billing"
 
     def prepare_agents(self):
-        # get generation data
-        self.log.info("....fetching resource information")
-        self.get_gen()
-
         if self.sector == "btm":
             # map tariffs
             self.log.info("....running with pre-processed tariffs")
@@ -349,7 +450,7 @@ class Model:
                 self.log.info("\n")
                 self.log.info(f"starting valuation for {len(self.agents)} FOM agents")
 
-                self.agents = valuer.run_multiprocessing(self.agents, configuration="fom")
+                self.agents = valuer.run_multiprocessing(self.agents, "fom")
 
                 self.log.info("null counts:")
                 self.log.info(self.agents.isnull().sum().sort_values())

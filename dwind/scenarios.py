@@ -115,7 +115,8 @@ def config_financial(scenario, year):
         f = f"/projects/dwind/configs/costs/atb24/ATB24_financing_baseline_{year}.json"
         i = Path("/projects/dwind/data/incentives/2025_incentives.json").resolve()
         with i.open("r") as i_in:
-            incentives = json.load(i_in)
+            incentives = pd.DataFrame.from_dict(json.load(i_in)).T
+        incentives.index.name = "census_tract_id"
     elif scenario in scenarios and year in (2035, 2040):
         f = "/projects/dwind/configs/costs/atb24/ATB24_financing_baseline_2035.json"
     else:
@@ -125,6 +126,8 @@ def config_financial(scenario, year):
 
     with f.open("r") as f_in:
         financials = json.load(f_in)
+
+    # TODO: determine if shared settings is applicable going forward, or separate should be reserved
     if year == 2025:
         financials["BTM"]["itc_fraction_of_capex"] = incentives
         financials["FOM"]["itc_fraction_of_capex"] = incentives

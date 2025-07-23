@@ -62,7 +62,7 @@ class ResourcePotential:
                 self.df[config_col].astype(str) + "_" + self.df[f"tilt_{self.tech}"].astype(str)
             )
         elif self.tech == "wind":
-            configs = self.rev.settings.wind
+            configs = self.config.rev.settings.wind
             config_col = "turbine_class"
             col_list = [
                 "gid",
@@ -74,6 +74,9 @@ class ResourcePotential:
             self.df[config_col] = self.df["wind_turbine_kw"].map(self.config.rev.turbine_class_dict)
 
         out_cols = [*col_list, f"rev_index_{self.tech}", f"{self.tech}_naep", f"{self.tech}_cf"]
+
+        drop_cols = [f"rev_gid_{self.tech}", f"{self.tech}_naep", f"{self.tech}_cf"]
+        self.df = self.df.drop(columns=[c for c in drop_cols if c in self.df])
 
         f_gen = (
             self.config.rev.generation[f"{self.tech}_DIR"]

@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import functools
@@ -54,15 +55,20 @@ class ValueFunctions:
         _load_sql = functools.partial(
             loader.load_df,
             year=self.year,
-            sql_constructur=self.confg.sql.ATLAS_PG_CON_STR,
+            sql_constructor=self.config.sql.ATLAS_PG_CON_STR,
+        )
+        cost_dir = self.config.cost.DIR
+
+        self.retail_rate_inputs = _load_csv(cost_dir / self.config.cost.RETAIL_RATE_INPUT_TABLE)
+        self.wholesale_rate_inputs = _load_csv(
+            cost_dir / self.config.cost.WHOLESALE_RATE_INPUT_TABLE
+        )
+        self.depreciation_schedule_inputs = _load_csv(
+            cost_dir / self.config.cost.DEPREC_INPUTS_TABLE
         )
 
-        self.retail_rate_inputs = _load_csv(self.config.cost.RETAIL_RATE_INPUT_TABLE)
-        self.wholesale_rate_inputs = _load_csv(self.config.cost.WHOLESALE_RATE_INPUT_TABLE)
-        self.depreciation_schedule_inputs = _load_csv(self.config.cost.DEPREC_INPUTS_TABLE)
-
         if "wind" in self.config.project.settings.TECHS:
-            self.wind_price_inputs = _load_sql(self.config.cost.WIND_PRICE_INPUT_TABLE)
+            self.wind_price_inputs = _load_csv(cost_dir / self.config.cost.WIND_PRICE_INPUT_TABLE)
             self.wind_tech_inputs = _load_sql(self.config.cost.WIND_TECH_INPUT_TABLE)
             self.wind_derate_inputs = _load_sql(self.config.cost.WIND_DERATE_INPUT_TABLE)
 
@@ -177,10 +183,7 @@ class ValueFunctions:
         # field, and need to be removed, then rejoined with the appropriate column names
         financial = self.FINANCIAL_INPUTS["BTM"].copy()
         if self.year == 2025:
-            incentives = pd.DataFrame.from_dict(
-                self.FINANCIAL_INPUTS["BTM"].pop("itc_fraction_of_capex")
-            ).T
-            incentives.index.name = "census_tract_id"
+            incentives = self.FINANCIAL_INPUTS["BTM"].pop("itc_fraction_of_capex")
 
         deprec_sch = pd.DataFrame()
         deprec_sch["sector_abbr"] = financial["deprec_sch"].keys()
@@ -237,52 +240,30 @@ class ValueFunctions:
         return df
 
     def _preprocess_fom(self, df, tech="wind"):
-        columns = [
-            "yr",
-            "cambium_scenario",
-            "analysis_period",
-            "debt_option",
-            "debt_percent",
-            "inflation_rate",
-            "dscr",
-            "real_discount_rate",
-            "term_int_rate",
-            "term_tenor",
-            f"ptc_fed_amt_{tech}",
-            "itc_fed_pct",
-            "deg",
-            "system_capex_per_kw",
-            "system_om_per_kw",
-        ]
-
         itc_fraction_of_capex = self.FINANCIAL_INPUTS["FOM"]["itc_fraction_of_capex"]
-        values = [
-            self.year,
-            self.CAMBIUM_SCENARIO,
-            self.FINANCIAL_INPUTS["FOM"]["system_lifetime"],
-            self.FINANCIAL_INPUTS["FOM"]["debt_option"],
-            self.FINANCIAL_INPUTS["FOM"]["debt_percent"] * 100,
-            self.FINANCIAL_INPUTS["FOM"]["inflation"] * 100,
-            self.FINANCIAL_INPUTS["FOM"]["dscr"],
-            self.FINANCIAL_INPUTS["FOM"]["discount_rate"] * 100,
-            self.FINANCIAL_INPUTS["FOM"]["interest_rate"] * 100,
-            self.FINANCIAL_INPUTS["FOM"]["system_lifetime"],
-            self.FINANCIAL_INPUTS["FOM"]["ptc_fed_dlrs_per_kwh"][tech],
-            itc_fraction_of_capex if self.year != 2025 else 0.3,
-            self.FINANCIAL_INPUTS["FOM"]["degradation"],
-            self.COST_INPUTS["FOM"]["system_capex_per_kw"][tech],
-            self.COST_INPUTS["FOM"]["system_om_per_kw"][tech],
-        ]
-        df[columns] = values
+        df = df.assign(
+            yr=self.year,
+            cambium_scenario=self.CAMBIUM_SCENARIO,
+            analysis_period=self.FINANCIAL_INPUTS["FOM"]["system_lifetime"],
+            debt_option=self.FINANCIAL_INPUTS["FOM"]["debt_option"],
+            debt_percent=self.FINANCIAL_INPUTS["FOM"]["debt_percent"] * 100,
+            inflation_rate=self.FINANCIAL_INPUTS["FOM"]["inflation"] * 100,
+            dscr=self.FINANCIAL_INPUTS["FOM"]["dscr"],
+            real_discount_rate=self.FINANCIAL_INPUTS["FOM"]["discount_rate"] * 100,
+            term_int_rate=self.FINANCIAL_INPUTS["FOM"]["interest_rate"] * 100,
+            term_tenor=self.FINANCIAL_INPUTS["FOM"]["system_lifetime"],
+            itc_fed_pct=itc_fraction_of_capex if self.year != 2025 else 0.3,
+            deg=self.FINANCIAL_INPUTS["FOM"]["degradation"],
+            system_capex_per_kw=self.COST_INPUTS["FOM"]["system_capex_per_kw"][tech],
+            system_om_per_kw=self.COST_INPUTS["FOM"]["system_om_per_kw"][tech],
+            **{f"ptc_fed_amt_{tech}": self.FINANCIAL_INPUTS["FOM"]["ptc_fed_dlrs_per_kwh"][tech]},
+        )
         # 2025 uses census-tract based applicable credit for the itc_fed_pct, so update accordingly
         if self.year == 2025:
-            incentives = pd.DataFrame.from_dict(
-                self.FINANCIAL_INPUTS["FOM"]["itc_fraction_of_capex"]
-            ).T
-            incentives.index.name = "census_tract_id"
+            incentives = self.FINANCIAL_INPUTS["FOM"]["itc_fraction_of_capex"]
+
             df = df.set_index("census_tract_id", drop=False).join(incentives).reset_index(drop=True)
-            df.itc_fed_pct = df.applicable_credit
-            df.itc_fed_pct = df.itc_fed_pct.fillna(0.3)
+            df.itc_fed_pct = df.applicable_credit.fillna(0.3)
 
         return df
 
@@ -353,6 +334,9 @@ class ValueFunctions:
         verb = self.config.project.settings.VERBOSITY
 
         if max_w > 1:
+            # Override project-level setting to ensure memory intensive calculations don't
+            # cause jobs to silently fail
+            max_w = min(int(os.cpu_count() * 0.8), max_w)
             results_list = []
 
             with cf.ProcessPoolExecutor(max_workers=max_w) as executor:
@@ -479,7 +463,7 @@ def fetch_cambium_values(row, generation_hourly, cambium_dir, cambium_value, low
     rev["cleared"] = rev["cleared"].apply(np.floor)
 
     rev = rev[["cleared", "value"]]
-    tup = tuple(map(tuple, rev.values))
+    tup = tuple(map(tuple, rev.values.tolist()))
 
     return tup
 
@@ -642,10 +626,8 @@ def find_breakeven(
                 full_output=full_output,
                 disp=disp,
             )
-
-            return breakeven_cost_usd_p_kw, {
-                k: loan.Outputs.export().get(k, None) for k in pysam_outputs
-            }
+            results = loan.Outputs.export()
+            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
@@ -678,9 +660,8 @@ def find_breakeven(
                 disp=disp,
             )
 
-            return breakeven_cost_usd_p_kw, {
-                k: loan.Outputs.export().get(k, None) for k in pysam_outputs
-            }
+            results = loan.Outputs.export()
+            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
@@ -719,9 +700,8 @@ def find_breakeven(
                 disp=disp,
             )
 
-            return breakeven_cost_usd_p_kw, {
-                k: loan.Outputs.export().get(k, None) for k in pysam_outputs
-            }
+            results = loan.Outputs.export()
+            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
@@ -825,9 +805,8 @@ def find_breakeven_fom(
                 disp=disp,
             )
 
-            return breakeven_cost_usd_p_kw, {
-                k: financial.Outputs.export().get(k, None) for k in pysam_outputs
-            }
+            results = financial.Outputs.export()
+            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
@@ -860,9 +839,8 @@ def find_breakeven_fom(
                 disp=disp,
             )
 
-            return breakeven_cost_usd_p_kw, {
-                k: financial.Outputs.export().get(k, None) for k in pysam_outputs
-            }
+            results = financial.Outputs.export()
+            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
@@ -900,9 +878,8 @@ def find_breakeven_fom(
                 disp=disp,
             )
 
-            return breakeven_cost_usd_p_kw, {
-                k: financial.Outputs.export().get(k, None) for k in pysam_outputs
-            }
+            results = financial.Outputs.export()
+            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
 
         except Exception as e:
             raise ValueError("Root finding failed") from e
@@ -1312,7 +1289,8 @@ def process_btm(
 
     _ = calc_financial_performance(row["system_capex_per_kw"], row, loan, batt_costs)
 
-    row["additional_pysam_outputs"] = {k: loan.Outputs.export().get(k, None) for k in pysam_outputs}
+    results = loan.Outputs.export()
+    row["additional_pysam_outputs"] = {k: results.get(k) for k in pysam_outputs}
 
     # run root finding algorithm to find breakeven cost based on calculated NPV
     out, _ = find_breakeven(
@@ -1469,9 +1447,8 @@ def process_fom(
 
         log.info(f"row {row.loc['gid']} calculating financial performance")
         _ = calc_financial_performance_fom(system_capex_per_kw, row, financial)
-        row["additional_pysam_outputs"] = {
-            k: financial.Outputs.export().get(k, None) for k in pysam_outputs
-        }
+        results = financial.Outputs.export()
+        row["additional_pysam_outputs"] = {k: results.get(k) for k in pysam_outputs}
 
         # run root finding algorithm to find breakeven cost based on calculated NPV
         log.info(f"row {row.loc['gid']} breakeven")
@@ -1533,7 +1510,7 @@ def worker(row: pd.Series, sector: str, config: Configuration):
                     row,
                     generation_hourly,
                     config.project.settings.CAMBIUM_DATA_DIR,
-                    config.CAMBIUM_VALUE,
+                    config.project.settings.CAMBIUM_VALUE,
                 )
 
                 row = process_fom(
@@ -1548,7 +1525,7 @@ def worker(row: pd.Series, sector: str, config: Configuration):
 
             # store results in dictionary
             results[f"{tech}_breakeven_cost_{sector}"] = row["breakeven_cost_usd_p_kw"]
-            results[f"{tech}_pysam_outputs_{sector}"] = row["additional_pysam_outputs"]
+            results |= row["additional_pysam_outputs"]
 
         return (row["gid"], results)
 

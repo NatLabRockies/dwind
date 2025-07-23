@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd
@@ -54,6 +56,7 @@ def _load_from_sql(table: str, sql_constructor: str, year: str | int | None) -> 
     atlas_engine = create_engine(sql_constructor)
 
     with atlas_engine.connect() as conn:
-        pd.read_sql(sql, con=conn.connection)
+        df = pd.read_sql(sql, con=conn.connection)
 
     atlas_engine.dispose()
+    return df

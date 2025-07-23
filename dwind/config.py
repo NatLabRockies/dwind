@@ -2,9 +2,19 @@
 attributes.
 """
 
+from __future__ import annotations
+
 import re
-import tomllib
+import sys
 from pathlib import Path
+
+
+# fmt: off
+if sys.version_info >= (3, 11):  # noqa
+    import tomllib
+else:
+    import tomli as tomllib
+# fmt: on
 
 
 class Mapping(dict):
@@ -80,7 +90,7 @@ class Configuration(Mapping):
                 to read and convert. If passing a filename, it must be a TOML file.
             initial (bool, optional): Option to disable post-processing of configuration data.
         """
-        if isinstance(config, str | Path):
+        if isinstance(config, (str, Path)):  # noqa: UP038
             config = Path(config).resolve()
             with config.open("rb") as f:
                 config = tomllib.load(f)

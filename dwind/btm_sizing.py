@@ -5,7 +5,8 @@ import logging
 import numpy as np
 import pandas as pd
 
-from dwind import Configuration, helper
+from dwind import Configuration
+from dwind.utils import array
 
 
 log = logging.getLogger("dwfs")
@@ -117,7 +118,7 @@ def sizer(agents: pd.DataFrame, config: Configuration):
             agents.drop_duplicates(subset=["gid"], inplace=True)
 
         # make small
-        agents = helper.memory_downcaster(agents)
+        agents = array.memory_downcaster(agents)
 
         return agents
 
