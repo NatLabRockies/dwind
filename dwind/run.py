@@ -3,19 +3,26 @@
 from __future__ import annotations
 
 import sys
-import tomllib
 from enum import Enum
-from typing import Annotated
+from typing import Optional, Annotated
 from pathlib import Path
 
 import typer
 import pandas as pd
+from rich.style import Style
+from rich.pretty import pprint
+from rich.console import Console
 
 
-# from memory_profiler import profile
-
+# fmt: off
+if sys.version_info >= (3, 11):  # noqa
+    import tomllib
+else:
+    import tomli as tomllib
+# fmt: on
 
 app = typer.Typer()
+console = Console()
 
 DWIND = Path("/projects/dwind/agents")
 
@@ -71,20 +78,25 @@ def year_callback(ctx: typer.Context, param: typer.CallbackParam, value: int):
 
 
 def load_agents(
-    file_name: str | Path | None = None,
+    file_name: Path | None = None,
     location: str | None = None,
     sector: str | None = None,
+    model_config: str | Path | None = None,
+    *,
+    prepare: bool = False,
 ) -> pd.DataFrame:
     """Load the agent file based on a filename or the location and sector to a Pandas DataFrame,
     and return the data frame.
 
     Args:
-        file_name (str | Path | None, optional): Name of the agent file, if not auto-generating from
+        file_name (Path | None, optional): Name of the agent file, if not auto-generating from
             the :py:attr:`location` and :py:attr:`sector` inputs. Defaults to None.
         location (str | None, optional): The name of the location or grouping, such as
             "colorado_larimer" or "priority1". Defaults to None.
         sector (str | None, optional): The name of the section. Must be one of "btm" or "fom".
             Defaults to None.
+        prepare (bool, optional): True if loading pre-chunked and prepared agent data, which should
+            bypass the standard column checking for additional joins, by default False.
 
     Returns:
         pd.DataFrame: The agent DataFrame.
@@ -97,10 +109,28 @@ def load_agents(
     f_agents = (
         file_name if file_name is not None else DWIND / f"{location}/agents_dwind_{sector}.parquet"
     )
+    if not isinstance(f_agents, Path):
+        f_agents = Path(f_agents).resolve()
+
+    alternative_suffix = (".pqt", ".parquet", ".pkl", ".pickle", ".csv")
+    base_style = Style.parse("cyan")
     if not f_agents.exists():
-        f_agents = f_agents.with_suffix(".pickle")
-    agents = Agents(agent_file=f_agents).agents
-    return agents
+        for suffix in alternative_suffix:
+            if (new_fn := f_agents.with_suffix(suffix)).exists():
+                if new_fn != f_agents:
+                    msg = (
+                        f"Using alternative agent file: {new_fn}\n\t"
+                        f"Requested agent file: {f_agents}"
+                    )
+                    console.print(msg, style=base_style)
+                    f_agents = new_fn
+                    break
+
+    if prepare:
+        return Agents.load_and_prepare_agents(
+            agent_file=f_agents, sector=sector, model_config=model_config
+        )
+    return Agents.load_agents(agent_file=f_agents)
 
 
 @app.command()
@@ -155,7 +185,9 @@ def run_hpc(
     dir_out: Annotated[
         str, typer.Option(help="Path to where the chunked outputs should be saved.")
     ],
-    stdout_path: Annotated[str | None, typer.Option(help="The path to write stdout logs.")] = None,
+    stdout_path: Annotated[
+        Optional[str], typer.Option(help="The path to write stdout logs.")  # noqa
+    ] = None,
 ):
     """Run dwind via the HPC multiprocessing interface."""
     sys.path.append(repository)
@@ -180,7 +212,9 @@ def run_hpc(
         stdout_path=stdout_path,
     )
 
-    agent_df = load_agents(location=location, sector=sector)
+    agent_df = load_agents(
+        location=location, sector=sector, model_config=model_config, prepare=True
+    )
     mp.run_jobs(agent_df)
 
 
@@ -194,15 +228,15 @@ def run_hpc_from_config(
     config_path = Path(config_path).resolve()
     with config_path.open("rb") as f:
         config = tomllib.load(f)
-    print(config)
+    print("Running the following configuration:")
+    pprint(config)
 
     run_hpc(**config)
 
 
 @app.command()
 def run_chunk(
-    # start: Annotated[int, typer.Option(help="chunk start index")],
-    # end: Annotated[int, typer.Option(help="chunk end index")],
+    chunk_ix: Annotated[int, typer.Option(help="Chunk number/index. Used for logging.")],
     location: Annotated[
         str, typer.Option(help="The state, state_county, or priority region to run.")
     ],
@@ -213,7 +247,6 @@ def run_chunk(
     year: Annotated[
         int, typer.Option(callback=year_callback, help="The year basis of the scenario.")
     ],
-    chunk_ix: Annotated[int, typer.Option(help="Chunk number/index. Used for logging.")],
     out_path: Annotated[str, typer.Option(help="save path")],
     repository: Annotated[
         str, typer.Option(help="Path to the dwind repository to use when running the model.")
@@ -230,7 +263,7 @@ def run_chunk(
     from dwind.model import Model
 
     agent_file = Path(out_path).resolve() / f"agents_{chunk_ix}.pqt"
-    agents = load_agents(file_name=agent_file)
+    agents = load_agents(file_name=agent_file, prepare=False)
     agent_file.unlink()
 
     model = Model(
@@ -271,7 +304,7 @@ def run(
     sys.path.append(repository)
     from dwind.model import Model
 
-    agents = load_agents(location=location, sector=sector)
+    agents = load_agents(location=location, sector=sector, model_config=model_config, prepare=True)
     model = Model(
         agents=agents,
         location=location,

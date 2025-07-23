@@ -4,9 +4,11 @@ import time
 from pathlib import Path
 
 import pandas as pd
+from rich.live import Live
 from rex.utilities.hpc import SLURM
 
-from dwind.helper import split_by_index
+from dwind.utils import hpc
+from dwind.utils.array import split_by_index
 
 
 class MultiProcess:
@@ -127,44 +129,45 @@ class MultiProcess:
                 log_dir.mkdir()
             self.stdout_path = log_dir
 
-    def check_status(self, job_ids: list[int]):
+    def check_status(self, job_ids: list[int], start_time: float):
         """Prints the status of all :py:attr:`jobs` submitted.
 
         Parameters
         ----------
         job_ids : list[int]
             The list of HPC ``job_id``s to check on.
+        start_time : float
+            The results of initial ``time.perf_counter()``.
         """
-        hpc = SLURM()
-        print(f"{len(job_ids)} job(s) started")
-
-        jobs_status = {j: hpc.check_status(job_id=j) for j in job_ids}
-        n_remaining = len([s for s in jobs_status.values() if s in ("PD", "R")])
-        print(f"{n_remaining} job(s) remaining: {jobs_status}")
-        time.sleep(30)
-
-        while n_remaining > 0:
-            hpc = SLURM()
-            for job, status in jobs_status.items():
-                if status in ("GC", "None"):
-                    continue
-                jobs_status.update({job: hpc.check_status(job_id=job)})
-
-            n_remaining = len([s for s in jobs_status.values() if s in ("PD", "R")])
-            print(f"{n_remaining} job(s) remaining: {jobs_status}")
-            if n_remaining > 0:
-                time.sleep(30)
+        slurm = SLURM()
+        job_status = {
+            j: {
+                "status": slurm.check_status(job_id=j),
+                "start": start_time,
+                "wait": time.perf_counter() - start_time,
+                "run": 0,
+            }
+            for j in job_ids
+        }
+        table, complete = hpc.generate_table(job_status)
+        with Live(table, refresh_per_second=1) as live:
+            while not complete:
+                time.sleep(5)
+                job_status |= hpc.update_status(job_status)
+                table, complete = hpc.generate_table(job_status)
+                live.update(table)
 
     def aggregate_outputs(self):
         """Collect the chunked results files, combine them into a single output parquet file, and
         delete the chunked results files.
         """
-        result_files = [f for f in self.out_path.iterdir() if f.suffix in (".pickle", ".pkl")]
+        result_files = [f for f in self.out_path.iterdir() if f.suffix == (".pqt")]
 
         if len(result_files) > 0:
-            result_agents = pd.concat([pd.read_pickle(f) for f in result_files])
+            result_agents = pd.concat([pd.read_parquet(f) for f in result_files])
             f_out = self.dir_out / f"run_{self.run_name}.pqt"
             result_agents.to_parquet(f_out)
+            print(f"Aggregated results saved to: {f_out}")
 
         for f in result_files:
             f.unlink()
@@ -185,20 +188,22 @@ class MultiProcess:
         base_cmd_str = f"module load conda; conda activate {self.env}; "
         base_cmd_str += "dwind run-chunk "
 
-        base_args = f"--location {self.location} "
-        base_args += f"--sector {self.sector} "
-        base_args += f"--scenario {self.scenario} "
-        base_args += f"--year {self.year} "
-        base_args += f"--repository {self.repository} "
-        base_args += f"--model-config {self.model_config} "
-        base_args += f"--out-path {self.out_path}"
+        base_args = f" {self.location} "
+        base_args += f" {self.sector} "
+        base_args += f" {self.scenario} "
+        base_args += f" {self.year} "
+        base_args += f" {self.out_path}"
+        base_args += f" {self.repository} "
+        base_args += f" {self.model_config} "
 
-        for i, (start, end) in enumerate(zip(starts, ends, strict=True)):
+        start_time = time.perf_counter()
+        # for i, (start, end) in enumerate(zip(starts, ends, strict=True)):
+        for i, (start, end) in enumerate(zip(starts, ends)):  # noqa: B905
             fn = self.out_path / f"agents_{i}.pqt"
             agent_df.iloc[start:end].to_parquet(fn)
 
             job_name = f"{self.run_name}_{i}"
-            cmd_str = f"{base_cmd_str} --chunk-ix {i} {base_args}"
+            cmd_str = f"{base_cmd_str} {i} {base_args}"
             print("cmd:", cmd_str)
 
             slurm_manager = SLURM()
@@ -221,5 +226,5 @@ class MultiProcess:
                 )
 
         # Check on the job statuses until they're complete, then aggregate the results
-        self.check_status(jobs)
+        self.check_status(jobs, start_time)
         self.aggregate_outputs()
