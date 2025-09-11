@@ -1,6 +1,10 @@
-import os
+"""Provides the core value calculation methods."""
+
+from __future__ import annotations
+
 import time
 import logging
+import pathlib
 import functools
 import concurrent.futures as cf
 
@@ -14,32 +18,37 @@ import PySAM.Utilityrate5 as ur5
 import PySAM.Merchantplant as mp
 from scipy import optimize
 
-from dwind import Configuration, loader, scenarios
+from dwind import scenarios
+from dwind.utils import loader
+from dwind.config import Year, Sector, Scenario, Technology, Optimization, Configuration
 
 
 log = logging.getLogger("dwfs")
 
 
 class ValueFunctions:
+    """Primary model calculation engine responsible for the computation of individual agents."""
+
     def __init__(
         self,
-        scenario: str,
-        year: int,
+        scenario: str | Scenario,
+        year: int | Year,
         configuration: Configuration,
-        return_format="totals",
+        return_format: str = "totals",
     ):
-        """Primary model calculation engine responsible for the computation of individual agents.
+        """Creates an instance of the valuation class.
 
         Args:
             scenario (str): Only option is "baseline" currently.
             year (int): Analysis year.
             configuration (dwind.config.Configuration): Model configuration with universal settings.
-            return_format ['profiles', 'total_profile', 'totals', 'total'] -
-                Return individual value stream 8760s, a cumulative value stream 8760,
-                annual totals for each value stream, or a single cumulative total
+            return_format (str, optional): One of "profiles", "total_profile", "totals", or "total"
+                to return individual value stream 8760s, a cumulative value stream 8760,
+                annual totals for each value stream, or a single cumulative total. Defaults to
+                "totals".
         """
-        self.scenario = scenario
-        self.year = year
+        self.scenario = Scenario(scenario)
+        self.year = Year(year)
         self.config = configuration
         self.return_format = return_format
 
@@ -51,6 +60,7 @@ class ValueFunctions:
         self.load()
 
     def load(self):
+        """Loads all the core data from CSV and SQL for configuring PySAM."""
         _load_csv = functools.partial(loader.load_df, year=self.year)
         _load_sql = functools.partial(
             loader.load_df,
@@ -121,9 +131,18 @@ class ValueFunctions:
         costs["system_variable_om_per_kw"] = cost_inputs["system_variable_om_per_kw"][tech]
         return costs
 
-    def _preprocess_btm(self, df, tech="wind"):
-        # sec = row['sector_abbr']
-        # county = int(row['county_id'])
+    def _preprocess_btm(self, df: pd.DataFrame, tech: str = "wind") -> pd.DataFrame:
+        """Join the core behind-the-meter wind and solar financial data to the agent dataframe
+        (:py:attr:`df`) based on turbine/solar sizing for each parcel.
+
+        Args:
+            df (pd.DataFrame): The agent data.
+            tech (str, optional): One of "solar" or "wind". Defaults to "wind".
+
+        Returns:
+            pd.DataFrame: Updated agent data with key financial data attached.
+        """
+        tech = Technology(tech)
         df["county_id_int"] = df.county_id.astype(int)
 
         # Get the electricity rates
@@ -144,8 +163,12 @@ class ValueFunctions:
         df = df.drop(columns="county_id_int")
 
         # Technology-specific factors
-        tech_join = "sector_abbr" if tech == "solar" else "wind_turbine_kw_btm"
-        cost_df = self._process_btm_costs(self.COST_INPUTS["BTM"], tech)
+        if tech is Technology.SOLAR:
+            tech_join = "sector_abbr"
+        elif tech is Technology.WIND:
+            tech_join = "wind_turbine_kw_btm"
+
+        cost_df = self._process_btm_costs(self.COST_INPUTS["BTM"], tech.value)
         df = pd.merge(
             df,
             cost_df,
@@ -153,15 +176,15 @@ class ValueFunctions:
             left_on=tech_join,
             right_on=tech_join,
         )
-        if tech == "solar":
+        if tech is Technology.SOLAR:
             df = pd.merge(
                 df,
-                self.PERFORMANCE_INPUTS[tech],
+                self.PERFORMANCE_INPUTS[tech.value],
                 how="left",
                 left_on=tech_join,
                 right_on=tech_join,
             )
-        else:
+        elif tech is Technology.WIND:
             df = pd.merge(
                 df,
                 self.wind_tech_inputs[["turbine_size_kw", "perf_improvement_factor"]],
@@ -240,9 +263,20 @@ class ValueFunctions:
         return df
 
     def _preprocess_fom(self, df, tech="wind"):
+        """Join the core front-of-meter wind and solar financial data to the agent dataframe
+        (:py:attr:`df`) based on turbine/solar sizing for each parcel.
+
+        Args:
+            df (pd.DataFrame): The agent data.
+            tech (str, optional): One of "solar" or "wind". Defaults to "wind".
+
+        Returns:
+            pd.DataFrame: Updated agent data with key financial data attached.
+        """
+        tech = Technology(tech)
         itc_fraction_of_capex = self.FINANCIAL_INPUTS["FOM"]["itc_fraction_of_capex"]
         df = df.assign(
-            yr=self.year,
+            yr=self.year.value,
             cambium_scenario=self.CAMBIUM_SCENARIO,
             analysis_period=self.FINANCIAL_INPUTS["FOM"]["system_lifetime"],
             debt_option=self.FINANCIAL_INPUTS["FOM"]["debt_option"],
@@ -254,9 +288,13 @@ class ValueFunctions:
             term_tenor=self.FINANCIAL_INPUTS["FOM"]["system_lifetime"],
             itc_fed_pct=itc_fraction_of_capex if self.year != 2025 else 0.3,
             deg=self.FINANCIAL_INPUTS["FOM"]["degradation"],
-            system_capex_per_kw=self.COST_INPUTS["FOM"]["system_capex_per_kw"][tech],
-            system_om_per_kw=self.COST_INPUTS["FOM"]["system_om_per_kw"][tech],
-            **{f"ptc_fed_amt_{tech}": self.FINANCIAL_INPUTS["FOM"]["ptc_fed_dlrs_per_kwh"][tech]},
+            system_capex_per_kw=self.COST_INPUTS["FOM"]["system_capex_per_kw"][tech.value],
+            system_om_per_kw=self.COST_INPUTS["FOM"]["system_om_per_kw"][tech.value],
+            **{
+                f"ptc_fed_amt_{tech.value}": self.FINANCIAL_INPUTS["FOM"]["ptc_fed_dlrs_per_kwh"][
+                    tech.value
+                ]
+            },
         )
         # 2025 uses census-tract based applicable credit for the itc_fed_pct, so update accordingly
         if self.year == 2025:
@@ -267,96 +305,42 @@ class ValueFunctions:
 
         return df
 
-    def run(self, agents: pd.DataFrame, sector: str):
-        # self._connect_to_sql()
+    def run(self, agents: pd.DataFrame, sector: Sector):
+        """Run a multi-threaded PySAM analysis on each agent.
 
-        max_w = self.config.project.settings.THREAD_WORKERS
-        verb = self.config.project.settings.VERBOSITY
+        Args:
+            agents (pd.DataFrame): The fully prepared agent DataFrame.
+            sector (:py:class:`dwind.config.Sector`): One of "fom" (front-of-meter) or "btm"
+                (behind-the-meter).
 
-        if max_w > 1:
-            results_list = []
-
-            # btw, multithreading is NOT multiprocessing
-            with cf.ThreadPoolExecutor(max_workers=max_w) as executor:
-                # log.info(
-                #     f'....beginning multiprocess execution of valuation with {max_w} threads')
-                log.info(f"....beginning execution of valuation with {max_w} threads")
-
-                start = time.time()
-                checkpoint = max(1, int(len(agents) * verb))
-
-                # submit to worker
-                futures = [
-                    executor.submit(self.worker, job, sector, self.config)
-                    for _, job in agents.iterrows()
-                ]
-
-                # return results *as completed* - not in same order as input
-                for f in cf.as_completed(futures):
-                    results_list.append(f.result())
-                    if len(results_list) % checkpoint == 0:
-                        sec_per_agent = (time.time() - start) / len(results_list)
-                        sec_per_agent = round(sec_per_agent, 3)
-
-                        eta = (sec_per_agent * (len(agents) - len(results_list))) / 60 / 60
-                        eta = round(eta, 2)
-
-                        l_results = len(results_list)
-                        l_agents = len(agents)
-
-                        log.info(f"........finished job {l_results} / {l_agents}")
-                        log.info(f"{sec_per_agent} seconds per agent")
-                        log.info(f"ETA: {eta} hours")
-        else:
-            results_list = [self.worker(job, sector, self.config) for _, job in agents.iterrows()]
-
-        # create results df from workers
-        new_index = [r[0] for r in results_list]
-        new_dicts = [r[1] for r in results_list]
-
-        new_df = pd.DataFrame(new_dicts)
-        new_df["gid"] = new_index
-        new_df.set_index("gid", inplace=True)
-
-        # merge valuation results to agents dataframe
-        agents = agents.merge(new_df, on="gid", how="left")
-
-        return agents
-
-    def run_multiprocessing(self, agents, sector):
-        # uses cf.ProcessPoolExecutor rather than cf.ThreadPoolExecutor in run.py
-        if sector == "btm":
+        Returns:
+            pd.DataFrame: An updated version of :py:attr:`agents` with PySAM results data.
+        """
+        if sector is Sector.BTM:
             agents = self._preprocess_btm(agents)
-        else:
+        elif sector is Sector.FOM:
             agents = self._preprocess_fom(agents)
 
         max_w = self.config.project.settings.CORES
         verb = self.config.project.settings.VERBOSITY
 
         if max_w > 1:
-            # Override project-level setting to ensure memory intensive calculations don't
-            # cause jobs to silently fail
-            max_w = min(int(os.cpu_count() * 0.8), max_w)
             results_list = []
-
+            # with cf.ProcessPoolExecutor(max_workers=max_w, mp_context=multiprocessing.get_context("spawn")) as executor:  # noqa
             with cf.ProcessPoolExecutor(max_workers=max_w) as executor:
-                log.info(f"....beginning multiprocess execution of valuation with {max_w} cores")
-
-                start = time.time()
+                start = time.perf_counter()
                 checkpoint = max(1, int(len(agents) * verb))
 
-                # submit to worker
                 futures = [
-                    executor.submit(worker, job, sector, self.config)
-                    for _, job in agents.iterrows()
+                    executor.submit(worker, row, self.config, sector)
+                    for _, row in agents.iterrows()
                 ]
 
-                # return results *as completed* - not in same order as input
                 for f in cf.as_completed(futures):
                     results_list.append(f.result())
 
                     if len(results_list) % checkpoint == 0:
-                        sec_per_agent = (time.time() - start) / len(results_list)
+                        sec_per_agent = (time.perf_counter() - start) / len(results_list)
                         sec_per_agent = round(sec_per_agent, 3)
 
                         eta = (sec_per_agent * (len(agents) - len(results_list))) / 60 / 60
@@ -369,23 +353,33 @@ class ValueFunctions:
                         log.info(f"{sec_per_agent} seconds per agent")
                         log.info(f"ETA: {eta} hours")
         else:
-            results_list = [worker(job, sector, self.config) for _, job in agents.iterrows()]
+            results_list = [worker(job, self.config, sector) for _, job in agents.iterrows()]
 
         # create results df from workers
-        new_index = [r[0] for r in results_list]
-        new_dicts = [r[1] for r in results_list]
-
-        new_df = pd.DataFrame(new_dicts)
-        new_df["gid"] = new_index
-        new_df.set_index("gid", inplace=True)
+        results_df = pd.DataFrame.from_dict(
+            {k: v for d in results_list for k, v in d.items()}, orient="index"
+        )
+        results_df.index.name = "gid"
 
         # merge valuation results to agents dataframe
-        agents = agents.merge(new_df, on="gid", how="left")
-
+        agents = agents.merge(results_df, on="gid", how="left")
         return agents
 
 
-def calc_financial_performance(capex_usd_p_kw, row, loan, batt_costs):
+def calc_financial_performance(
+    capex_usd_p_kw: float, row: pd.Series, loan: cashloan, batt_costs: float
+) -> float:
+    """Calculates the net present value (NPV) for a single agent.
+
+    Args:
+        capex_usd_p_kw (float): Capital expenditures per kilowatt in USD (CapEx $/kW).
+        row (pd.Series): Single row of the agent DataFrame.
+        loan (:py:class:`PySAM.Cashloan`): Configured ``cashloan`` object.
+        batt_costs (float): Battery costs.
+
+    Returns:
+        float: The NPV of the agent.
+    """
     system_costs = capex_usd_p_kw * row["system_size_kw"]
 
     # calculate system costs
@@ -399,7 +393,18 @@ def calc_financial_performance(capex_usd_p_kw, row, loan, batt_costs):
     return loan.Outputs.npv
 
 
-def calc_financial_performance_fom(capex_usd_p_kw, row, financial):
+def calc_financial_performance_fom(capex_usd_p_kw: float, row: pd.Series, financial: mp) -> float:
+    """Calculates the post-tax net present value (NPV) for a single agent.
+
+    Args:
+        capex_usd_p_kw (float): Capital expenditures per kilowatt in USD (CapEx $/kW).
+        row (pd.Series): Single row of the agent DataFrame.
+        financial (:py:class:`PySAM.Merchantplant`): Configured :py:class:`PVWattsMerchantplant``
+            or :py:class:`WindPowerMerchantplant`.
+
+    Returns:
+        float: The post-taxs NPV of the agent.
+    """
     system_costs = capex_usd_p_kw * row.loc["system_size_kw"]
 
     financial.SystemCosts.total_installed_cost = system_costs
@@ -410,7 +415,27 @@ def calc_financial_performance_fom(capex_usd_p_kw, row, financial):
     return financial.Outputs.project_return_aftertax_npv
 
 
-def find_cf_from_rev_wind(rev_dir, generation_scale_offset, tech_config, rev_index, year=2012):
+def find_cf_from_rev_wind(
+    rev_dir: pathlib.Path,
+    generation_scale_offset: float,
+    tech_config: str,
+    rev_index: str,
+    year: int = 2018,
+) -> np.ndarray:
+    """Calculate the reV capacity factor.
+
+    Args:
+        rev_dir (pathlib.Path): Location of the pre-calculated reV results found at
+            ``Configuration.project.rev.DIR``
+        generation_scale_offset (float): Generation scaling offset found in the model configuration
+            at ``Configuration.project.settings.GENERATION_SCALE_OFFSET.wind``.
+        tech_config (str): Technology configuration string
+        rev_index (str): The "rev_index_wind" column value for the agent.
+        year (int, optional): reV generation year basis. Defaults to 2018.
+
+    Returns:
+        np.ndarray: Array of capacity factors.
+    """
     file_str = rev_dir / f"rev_{tech_config}_generation_{year}.h5"
 
     with h5.File(file_str, "r") as hf:
@@ -424,14 +449,33 @@ def find_cf_from_rev_wind(rev_dir, generation_scale_offset, tech_config, rev_ind
         scale_factor = generation_scale_offset
 
     cf_prof /= scale_factor
-
     return cf_prof
 
 
-def fetch_cambium_values(row, generation_hourly, cambium_dir, cambium_value, lower_thresh=0.01):
+def fetch_cambium_values(
+    row: pd.Series,
+    generation_hourly: np.ndarray,
+    cambium_dir: pathlib.Path,
+    cambium_value: str,
+    lower_thresh: float = 0.01,
+) -> list[list[float, float], ...]:
+    """Retrieves the Cambium values as an 8760 x 2 tuple of tuples.
+
+    Args:
+        row (pd.Series): An individual row of the agent DataFrame.
+        generation_hourly (np.ndarray): Hourly generation data for a single year (length 8760).
+        cambium_dir (pathlib.Path): Full file path for the Cambium data.
+        cambium_value (str): Which Cambium value to retrieve.
+        lower_thresh (float, optional): Lower threshold for the MerchantPlant calculations.
+            Defaults to 0.01.
+
+    Returns:
+        list[list[float, float], ...]: Hourly, single year (8760) of the clipped generation, in MW,
+            and value, in $/MW.
+    """
     # read processed cambium dataframe from pickle
     cambium_f = cambium_dir / f"{row['cambium_scenario']}_pca_{row['yr']}_processed.pqt"
-    cambium_df = pd.read_parquet(cambium_f)
+    cambium_df = pd.read_parquet(cambium_f, dtype_backend="pyarrow")
 
     cambium_df["year"] = cambium_df["year"].astype(str)
     cambium_df["pca"] = cambium_df["pca"].astype(str)
@@ -462,24 +506,21 @@ def fetch_cambium_values(row, generation_hourly, cambium_dir, cambium_value, low
     rev.loc[rev["cleared"] < rev["cleared"].max() * lower_thresh, "cleared"] = 0
     rev["cleared"] = rev["cleared"].apply(np.floor)
 
-    rev = rev[["cleared", "value"]]
-    tup = tuple(map(tuple, rev.values.tolist()))
-
-    return tup
+    return rev[["cleared", "value"]].values.tolist()
 
 
-def process_tariff(utilityrate, row, net_billing_sell_rate):
+def process_tariff(utilityrate: ur5, row: pd.Series, net_billing_sell_rate: float) -> ur5:
     """Instantiate the utilityrate5 PySAM model and process the agent's
     rate information to conform with PySAM input formatting.
 
-    Parameters
-    ----------
-    agent : 'pd.Series'
-        Individual agent object.
+    Args:
+        utilityrate (:py:class:`PySAM.Utilityrate5`): Utilityrate5 model to be configured based
+            on the agent's specifications.
+        row (pd.Series): Individual agent row from the agent DataFrame.
+        net_billing_sell_rate (float): Net billing sell rate.
 
     Returns:
-    -------
-    utilityrate: 'PySAM.Utilityrate5'
+        PySAM.Utilityrate5: Configured Utilityrate5 model.
     """
     # Monthly fixed charge [$]
     utilityrate.ElectricityRates.ur_monthly_fixed_charge = row["ur_monthly_fixed_charge"]
@@ -532,13 +573,48 @@ def process_tariff(utilityrate, row, net_billing_sell_rate):
 
 
 def find_breakeven(
-    row,
-    loan,
-    batt_costs,
-    pysam_outputs,
-    pre_calc_bounds_and_tolerances=True,
+    row: pd.Series,
+    loan: cashloan,
+    batt_costs: float,
+    pysam_outputs: list[str],
+    method: str,
+    *,
+    pre_calc_bounds_and_tolerances: bool = True,
     **kwargs,
-):
+) -> pd.DataFrame | tuple[float, dict]:
+    """Calculates the breakeven cost and parameters for a distributed wind turbine in the agent's
+    location.
+
+    Args:
+        row (pd.Series): Single row of the agent DataFrame.
+        loan (:py:class:`PySAM.Cashloan`): Configured ``cashloan`` object.
+        batt_costs (float): Battery costs.
+        pysam_outputs (list[str]): List of PySAM output variables to return with the breakeven
+            cost.
+        method (str): Name of the optimization strategy. Must be on of "bisect", "brentq",
+            "grid_search", or "newton".
+        pre_calc_bounds_and_tolerances (bool, optional): Flag to pre-calculate the bounds for the
+            bisect adn brentq optimization methods.
+        **kwargs (dict): Inputs for each optimization strategy. For further parameterizations,
+            see the documentation for the "brentq", "bisect", and "newton" methods on the
+            `scipy optimize API reference site`_
+
+            # TODO: parameterize the default values.
+
+    Raises:
+        ValueError: Raised if the optimization was unable to find a viable solution
+        ValueError: Raised for an unknown :py:attr:`method`.
+
+    Returns:
+        pd.DataFrame: Returned when :py:attr:`method` is "grid_search"
+        tuple[float, dict]: Returns the breakeven cost and PySAM outputs specified in
+            :py:attr:`pysam_outputs` when :py:attr:`method` is "brentq", "bisect", or "newton".
+
+    .. _scipy optimize API reference site:
+       https://docs.scipy.org/doc/scipy/reference/optimize.html#scalar-functions
+    """
+    method = Optimization(method)
+
     # calculate theoretical min/max NPV values
     min_npv = calc_financial_performance(1e9, row, loan, batt_costs)
 
@@ -580,7 +656,7 @@ def find_breakeven(
         # pre-calculate tolerance as a proportion of capex value pre-calculated directly above
         tol = 1e-6 * ((a + b) / 2)
 
-    if kwargs["method"] == "grid_search":
+    if method is Optimization.GRID_SEARCH:
         if kwargs["capex_array"] is None:
             capex_array = np.arange(5000.0, -500.0, -500.0)
         else:
@@ -598,7 +674,8 @@ def find_breakeven(
 
         except Exception as e:
             raise ValueError("Grid search failed.") from e
-    elif kwargs["method"] == "bisect":
+
+    if method is Optimization.BISECT:
         try:
             # required args for 'bisect'
             if not pre_calc_bounds_and_tolerances:
@@ -626,12 +703,13 @@ def find_breakeven(
                 full_output=full_output,
                 disp=disp,
             )
-            results = loan.Outputs.export()
-            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
+            results = {k: getattr(loan.Outputs, k) for k in pysam_outputs}
+            return breakeven_cost_usd_p_kw, results
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
-    elif kwargs["method"] == "brentq":
+
+    if method is Optimization.BRENTQ:
         try:
             # required args for 'brentq'
             if not pre_calc_bounds_and_tolerances:
@@ -660,13 +738,13 @@ def find_breakeven(
                 disp=disp,
             )
 
-            results = loan.Outputs.export()
-            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
+            results = {k: getattr(loan.Outputs, k) for k in pysam_outputs}
+            return breakeven_cost_usd_p_kw, results
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
 
-    elif kwargs["method"] == "newton":
+    if method is Optimization.NEWTON:
         try:
             # required args for 'newton'
             x0 = kwargs["x0"]
@@ -700,23 +778,57 @@ def find_breakeven(
                 disp=disp,
             )
 
-            results = loan.Outputs.export()
-            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
+            results = {k: getattr(loan.Outputs, k) for k in pysam_outputs}
+            return breakeven_cost_usd_p_kw, results
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
 
-    else:
-        raise ValueError("Invalid method passed to find_breakeven function")
+    raise ValueError(f"Invalid `method` ({method}) passed to `find_breakeven` function")
 
 
 def find_breakeven_fom(
-    row,
-    financial,
-    pysam_outputs,
-    pre_calc_bounds_and_tolerances=True,
+    row: pd.Series,
+    financial: mp,
+    pysam_outputs: list[str],
+    method: str,
+    *,
+    pre_calc_bounds_and_tolerances: bool = True,
     **kwargs,
-):
+) -> pd.DataFrame | tuple[float, dict]:
+    """Calculates the breakeven cost and parameters for a front-of-meter distributed wind turbine
+    in the agent's location.
+
+    Args:
+        row (pd.Series): Single row of the agent DataFrame.
+        financial (:py:class:`PySAM.Merchantplant`): Configured ``PVWattsMerchantPlant``  or
+        :py:class:`PySAM.WindPowerMerchantplant` object.
+        pysam_outputs (list[str]): List of PySAM output variables to return with the breakeven
+            cost.
+        method (str): Name of the optimization strategy. Must be on of "bisect", "brentq",
+            "grid_search", or "newton".
+        pre_calc_bounds_and_tolerances (bool, optional): Flag to pre-calculate the bounds for the
+            bisect adn brentq optimization methods.
+        **kwargs (dict): Inputs for each optimization strategy. For further parameterizations,
+            see the documentation for the "brentq", "bisect", and "newton" methods on the
+            `scipy optimize API reference site`_
+
+            # TODO: parameterize the default values.
+
+    Raises:
+        ValueError: Raised if the optimization was unable to find a viable solution
+        ValueError: Raised for an unknown :py:attr:`method`.
+
+    Returns:
+        pd.DataFrame: Returned when :py:attr:`method` is "grid_search"
+        tuple[float, dict]: Returns the breakeven cost and PySAM outputs specified in
+            :py:attr:`pysam_outputs` when :py:attr:`method` is "brentq", "bisect", or "newton".
+
+    .. _scipy optimize API reference site:
+       https://docs.scipy.org/doc/scipy/reference/optimize.html#scalar-functions
+    """
+    method = Optimization(method)
+
     # calculate theoretical min/max NPV values
     min_npv = calc_financial_performance_fom(1e9, row, financial)
 
@@ -758,7 +870,7 @@ def find_breakeven_fom(
         # capex value pre-calculated directly above
         tol = 1e-6 * ((a + b) / 2)
 
-    if kwargs["method"] == "grid_search":
+    if method is Optimization.GRID_SEARCH:
         if kwargs["capex_array"] is None:
             capex_array = np.arange(5000.0, -500.0, -500.0)
         else:
@@ -776,7 +888,8 @@ def find_breakeven_fom(
 
         except Exception as e:
             raise ValueError("Grid search failed.") from e
-    elif kwargs["method"] == "bisect":
+
+    if method is Optimization.BISECT:
         try:
             # required args for 'bisect
             if not pre_calc_bounds_and_tolerances:
@@ -805,12 +918,13 @@ def find_breakeven_fom(
                 disp=disp,
             )
 
-            results = financial.Outputs.export()
-            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
+            results = {k: getattr(financial.Outputs, k) for k in pysam_outputs}
+            return breakeven_cost_usd_p_kw, results
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
-    elif kwargs["method"] == "brentq":
+
+    if method is Optimization.BRENTQ:
         try:
             # required args for 'brentq'
             if not pre_calc_bounds_and_tolerances:
@@ -839,12 +953,13 @@ def find_breakeven_fom(
                 disp=disp,
             )
 
-            results = financial.Outputs.export()
-            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
+            results = {k: getattr(financial.Outputs, k) for k in pysam_outputs}
+            return breakeven_cost_usd_p_kw, results
 
         except Exception as e:
             raise ValueError("Root finding failed.") from e
-    elif kwargs["method"] == "newton":
+
+    if method is Optimization.NEWTON:
         try:
             # required args for 'newton'
             x0 = kwargs["x0"]
@@ -878,56 +993,46 @@ def find_breakeven_fom(
                 disp=disp,
             )
 
-            results = financial.Outputs.export()
-            return breakeven_cost_usd_p_kw, {k: results.get(k) for k in pysam_outputs}
+            results = {k: getattr(financial.Outputs, k) for k in pysam_outputs}
+            return breakeven_cost_usd_p_kw, results
 
         except Exception as e:
             raise ValueError("Root finding failed") from e
-    else:
-        raise ValueError("Invalid method passed to find_breakeven function")
+
+    raise ValueError("Invalid method passed to find_breakeven function")
 
 
 def process_btm(
-    row,
-    tech,
-    generation_hourly,
-    consumption_hourly,
-    pysam_outputs,
+    row: pd.Series,
+    tech: Technology,
+    generation_hourly: np.ndarray,
+    consumption_hourly: np.ndarray,
+    pysam_outputs: list[str],
+    batt_dispatch: str | None = None,
+    *,
     en_batt=False,
-    batt_dispatch=None,
 ):
-    """Behind-the-meter ...
+    """Behind-the-meter calculation for a single agent.
 
-    This function processes a BTM agent by:
-        1)
+    TODO: list out the actual process
 
-    Parameters
-    ----------
-    **row** : 'DataFrame row'
-        The row of the dataframe on which the function is performed
-    **exported_hourly** : ''
-        8760 of generation
-    **consumption_hourly** : ''
-        8760 of consumption
-    **tariff_dict** : 'dict'
-        Dictionary containing tariff parameters
-    **btm_nem** : 'bool'
-        Enable NEM for BTM parcels
-    **en_batt** : 'bool'
-        Enable battery modeling
-    **batt_dispatch** : 'string'
-        Specify battery dispatch strategy type
+    Args:
+        row (pandas.Series): The row of the dataframe on which the function is performed.
+        tech (dwind.config.Technology): Validated :py:class:`dwind.config.Technology` object.
+        generation_hourly (np.ndarray): Hourly generation for a single year (8760 hours).
+        consumption_hourly (np.ndarray): Hourly consumption for a single year (8760 hours).
+        pysam_outputs (list[str]): List of desired PySAM output data.
+        batt_dispatch (str, optional): Battery dispatch strategy type.
+        en_batt (bool, optional): Enable battery modeling if True. Defaults to False.
 
     Returns:
-    -------
-
+        pd.Series: Updated :py:attr:`row` with PySAM and breakeven cost results.
     """
     # extract agent load and generation profiles
     generation_hourly = np.array(generation_hourly)
-    consumption_hourly = np.array(consumption_hourly, dtype=np.float32)
 
     # specify tech-agnostic system size column
-    row["system_size_kw"] = row[f"{tech}_size_kw_btm"]
+    row["system_size_kw"] = row[f"{tech.value}_size_kw_btm"]
 
     # instantiate PySAM battery model based on agent sector
     if row.loc["sector_abbr"] == "res":
@@ -1289,8 +1394,7 @@ def process_btm(
 
     _ = calc_financial_performance(row["system_capex_per_kw"], row, loan, batt_costs)
 
-    results = loan.Outputs.export()
-    row["additional_pysam_outputs"] = {k: results.get(k) for k in pysam_outputs}
+    row["additional_pysam_outputs"] = {k: getattr(loan.Outputs, k) for k in pysam_outputs}
 
     # run root finding algorithm to find breakeven cost based on calculated NPV
     out, _ = find_breakeven(
@@ -1298,8 +1402,9 @@ def process_btm(
         loan=loan,
         pysam_outputs=pysam_outputs,
         batt_costs=batt_costs,
+        method="newton",
         pre_calc_bounds_and_tolerances=False,
-        **{"method": "newton", "x0": 10000.0, "full_output": True},
+        **{"x0": 10000.0, "full_output": True},
     )
 
     row["breakeven_cost_usd_p_kw"] = out
@@ -1308,40 +1413,39 @@ def process_btm(
 
 
 def process_fom(
-    row,
-    tech,
-    generation_hourly,
-    market_profile,
-    pysam_outputs,
-    en_batt=False,
-    batt_dispatch=None,
+    row: pd.Series,
+    tech: Technology,
+    generation_hourly: np.ndarray,
+    market_profile: list[list[float, float], ...],
+    pysam_outputs: list[str],
+    batt_dispatch: str | None = None,
+    *,
+    en_batt: bool = False,
 ):
-    """Front-of-the-meter ...
+    """Front-of-meter calculation for a single agent.
 
-    This function processes a FOM agent by:
-        1)
+    TODO: list out the actual process
 
-    Parameters
-    ----------
-    **row** : 'DataFrame row'
-        The row of the dataframe on which the function is performed
-    **exported_hourly** : ''
-        8760 of generation
-    **cambium_grid_value** : ''
-        8760 of Cambium values
+    Args:
+        row (pandas.Series): The row of the dataframe on which the function is performed.
+        tech (dwind.config.Technology): Validated :py:class:`dwind.config.Technology` object.
+        generation_hourly (np.ndarray): Hourly generation for a single year (8760 hours).
+        market_profile (list[list[float, float], ...]): Hourly Cambium values for a single year.
+        pysam_outputs (list[str]): List of desired PySAM output data.
+        batt_dispatch (str, optional): Battery dispatch strategy type.
+        en_batt (bool, optional): Enable battery modeling if True. Defaults to False.
 
     Returns:
-    -------
-
+        pd.Series: Updated :py:attr:`row` with PySAM and breakeven cost results.
     """
     # extract generation profile
     generation_hourly = np.array(generation_hourly)
 
     # specify tech-agnostic system size column
-    row["system_size_kw"] = row[f"{tech}_size_kw_fom"]
+    row["system_size_kw"] = row[f"{tech.value}_size_kw_fom"]
 
     inv_eff = 1.0  # required inverter efficiency for FOM systems
-    gen = [i * inv_eff for i in generation_hourly]
+    gen = (generation_hourly * inv_eff).tolist()
 
     # set up battery, with system generation conditional
     # on the battery generation being included
@@ -1350,15 +1454,15 @@ def process_fom(
         pass
     else:
         # initialize PySAM model
-        if tech == "solar":
+        if tech is Technology.SOLAR:
             financial = mp.default("PVWattsMerchantPlant")
-        elif tech == "wind":
+        elif tech is Technology.WIND:
             financial = mp.default("WindPowerMerchantPlant")
         else:
             msg = "Please write a wrapper to account for the new technology type"
-            raise NotImplementedError(f"{msg} {tech}")
+            raise NotImplementedError(f"{msg} {tech.value}")
 
-        ptc_fed_amt = row[f"ptc_fed_amt_{tech}"]
+        ptc_fed_amt = row[f"ptc_fed_amt_{tech.value}"]
         itc_fed_pct = row["itc_fed_pct"]
         deg = row["deg"]
         system_capex_per_kw = row["system_capex_per_kw"]
@@ -1426,10 +1530,12 @@ def process_fom(
         financial.Revenue.mp_enable_ancserv2 = 0
         financial.Revenue.mp_enable_ancserv3 = 0
         financial.Revenue.mp_enable_ancserv4 = 0
-        financial.Revenue.mp_ancserv1_revenue = [(0, 0) for i in range(len(market_profile))]
-        financial.Revenue.mp_ancserv2_revenue = [(0, 0) for i in range(len(market_profile))]
-        financial.Revenue.mp_ancserv3_revenue = [(0, 0) for i in range(len(market_profile))]
-        financial.Revenue.mp_ancserv4_revenue = [(0, 0) for i in range(len(market_profile))]
+
+        N = len(market_profile)
+        financial.Revenue.mp_ancserv1_revenue = [(0, 0)] * N
+        financial.Revenue.mp_ancserv2_revenue = [(0, 0)] * N
+        financial.Revenue.mp_ancserv3_revenue = [(0, 0)] * N
+        financial.Revenue.mp_ancserv4_revenue = [(0, 0)] * N
 
         financial.CapacityPayments.cp_capacity_payment_type = 0
         financial.CapacityPayments.cp_capacity_payment_amount = [0]
@@ -1447,8 +1553,7 @@ def process_fom(
 
         log.info(f"row {row.loc['gid']} calculating financial performance")
         _ = calc_financial_performance_fom(system_capex_per_kw, row, financial)
-        results = financial.Outputs.export()
-        row["additional_pysam_outputs"] = {k: results.get(k) for k in pysam_outputs}
+        row["additional_pysam_outputs"] = {k: getattr(financial.Outputs, k) for k in pysam_outputs}
 
         # run root finding algorithm to find breakeven cost based on calculated NPV
         log.info(f"row {row.loc['gid']} breakeven")
@@ -1465,46 +1570,70 @@ def process_fom(
     return row
 
 
-def worker(row: pd.Series, sector: str, config: Configuration):
+def worker(row: pd.Series, config: Configuration, sector: Sector) -> tuple[str, dict]:
+    """Individual calculation process meant to be run in parallel.
+
+    Args:
+        row (pd.Series): Individual row of from the agent DataFraem to analyze.
+        config (Configuration): The overarching dwind configuration.
+        sector (Sector): One of "fom" or "btm".
+
+    Returns:
+        tuple[str, dict]: "gid" column of :py:attr:`row` and the dictionary
+        of results for that agent.
+    """
     try:
         results = {}
         for tech in config.project.settings.TECHS:
-            if tech == "wind":
+            tech = Technology(tech)
+            if tech is Technology.WIND:
                 tech_config = row["turbine_class"]
-            elif tech == "solar":
+            elif tech is Technology.SOLAR:
                 # TODO: Not updated for the actual configuration, so solar is likely out of date
-                azimuth = config.rev.settings.azimuth_direction_to_degree[row[f"azimuth_{sector}"]]
-                tilt = row[f"tilt_{sector}"]
-                tech_config = str(azimuth) + "_" + str(tilt)
+                azimuth = config.rev.settings.azimuth_direction_to_degree[
+                    row[f"azimuth_{sector.value}"]
+                ]
+                tilt = row[f"tilt_{sector.value}"]
+                str(azimuth) + "_" + str(tilt)
 
-            if row[f"{tech}_size_kw_{sector}"] > 0:
+            if row[f"{tech.value}_size_kw_{sector.value}"] > 0:
                 tech_config = row["turbine_class"]
                 cf_hourly = find_cf_from_rev_wind(
-                    config.rev.DIR,
-                    config.project.settings.GENERATION_SCALE_OFFSET["wind"],
-                    tech_config,
-                    row[f"rev_index_{tech}"],
+                    rev_dir=config.rev.DIR,
+                    generation_scale_offset=config.project.settings.GENERATION_SCALE_OFFSET["wind"],
+                    rev_index=row[f"rev_index_{tech.value}"],
+                    tech_config=tech_config,
                 )
-                generation_hourly = cf_hourly * row[f"{tech}_size_kw_{sector}"]
+                generation_hourly = cf_hourly * row[f"{tech.value}_size_kw_{sector.value}"]
                 generation_hourly = generation_hourly.round(2)
                 generation_hourly = np.array(generation_hourly).astype(np.float32).round(2)
             else:
                 # if system size is zero, return dummy values
-                results[f"{tech}_breakeven_cost_{sector}"] = -1
-                results[f"{tech}_pysam_outputs_{sector}"] = {"msg": "System size is zero"}
+                results[f"{tech.value}_breakeven_cost_{sector.value}"] = -1
+                results[f"{tech.value}_pysam_outputs_{sector.value}"] = {
+                    "msg": "System size is zero"
+                }
                 continue
 
-            if sector == "btm":
+            if sector is Sector.BTM:
+                with h5.File("/projects/dwind/data/crb_consumption_hourly.h5") as hf:
+                    c, h = row.crb_model_index, row.hdf_index
+                    consumption_hourly = hf["consumption"][c, h, :].astype(np.float32)
+                    consumption_hourly /= 1e8
+                    consumption_hourly = (
+                        consumption_hourly / consumption_hourly.sum() * row.load_kwh
+                    )
+
                 row = process_btm(
                     row=row,
                     tech=tech,
                     generation_hourly=generation_hourly,
-                    consumption_hourly=row["consumption_hourly"],
+                    consumption_hourly=consumption_hourly,
                     pysam_outputs=config.pysam.outputs.btm,
                     en_batt=False,
                     batt_dispatch=None,  # TODO: enable battery switch earlier
                 )
-            else:
+            elif sector is Sector.FOM:
                 # fetch 8760 cambium values for FOM
                 market_profile = fetch_cambium_values(
                     row,
@@ -1524,10 +1653,10 @@ def worker(row: pd.Series, sector: str, config: Configuration):
                 )
 
             # store results in dictionary
-            results[f"{tech}_breakeven_cost_{sector}"] = row["breakeven_cost_usd_p_kw"]
+            results[f"{tech.value}_breakeven_cost_{sector.value}"] = row["breakeven_cost_usd_p_kw"]
             results |= row["additional_pysam_outputs"]
 
-        return (row["gid"], results)
+        return {row["gid"]: results}
 
     except Exception as e:
         log.exception(e)

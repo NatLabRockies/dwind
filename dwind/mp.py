@@ -1,3 +1,8 @@
+"""Provides the :py:class:`MultiProcess` class for running a model on `NREL's Kestrel HPC system`_.
+
+.. NREL's Kestrel HPC system: https://nrel.github.io/HPC/Documentation/Systems/Kestrel/
+"""
+
 from __future__ import annotations
 
 import time
@@ -118,7 +123,7 @@ class MultiProcess:
 
         # Create the output directory if it doesn't already exist
         self.dir_out = Path.cwd() if dir_out is None else Path(self.dir_out).resolve()
-        self.out_path = self.dir_out / f"chunk_files_{self.run_name}"
+        self.out_path = self.dir_out / "chunk_files"
         if not self.out_path.exists():
             self.out_path.mkdir()
 
@@ -149,57 +154,46 @@ class MultiProcess:
             }
             for j in job_ids
         }
-        table, complete = hpc.generate_table(job_status)
+        table, complete = hpc.generate_run_status_table(job_status)
         with Live(table, refresh_per_second=1) as live:
             while not complete:
                 time.sleep(5)
                 job_status |= hpc.update_status(job_status)
-                table, complete = hpc.generate_table(job_status)
+                table, complete = hpc.generate_run_status_table(job_status)
                 live.update(table)
 
-    def aggregate_outputs(self):
-        """Collect the chunked results files, combine them into a single output parquet file, and
-        delete the chunked results files.
-        """
-        result_files = [f for f in self.out_path.iterdir() if f.suffix == (".pqt")]
-
-        if len(result_files) > 0:
-            result_agents = pd.concat([pd.read_parquet(f) for f in result_files])
-            f_out = self.dir_out / f"run_{self.run_name}.pqt"
-            result_agents.to_parquet(f_out)
-            print(f"Aggregated results saved to: {f_out}")
-
-        for f in result_files:
-            f.unlink()
-
-    def run_jobs(self, agent_df: pd.DataFrame) -> None:
+    def run_jobs(self, agent_df: pd.DataFrame) -> dict[str, int]:
         """Run :py:attr:`n_jobs` number of jobs for the :py:attr:`agent_df`.
 
-        Parameters
-        ----------
-        agent_df : pandas.DataFrame
-            The agent DataFrame to be chunked and analyzed.
+        Args:
+            agent_df (pandas.DataFrame): The agent DataFrame to be chunked and analyzed.
+
+        Returns:
+            dict[str, int]: Dictionary mapping of each SLURM job id to the chunk run in that job.
         """
         agent_df = agent_df.reset_index(drop=True)
         # chunks = np.array_split(agent_df, self.n_nodes)
         starts, ends = split_by_index(agent_df, self.n_nodes)
-        jobs = []
+        job_chunk_map = {}
 
-        base_cmd_str = f"module load conda; conda activate {self.env}; "
-        base_cmd_str += "dwind run-chunk "
+        base_cmd_str = f"module load conda; conda activate {self.env};"
+        base_cmd_str += " dwind run chunk"
 
-        base_args = f" {self.location} "
-        base_args += f" {self.sector} "
-        base_args += f" {self.scenario} "
-        base_args += f" {self.year} "
+        base_args = f" {self.location}"
+        base_args += f" {self.sector}"
+        base_args += f" {self.scenario}"
+        base_args += f" {self.year}"
         base_args += f" {self.out_path}"
-        base_args += f" {self.repository} "
-        base_args += f" {self.model_config} "
+        base_args += f" {self.repository}"
+        base_args += f" {self.model_config}"
+
+        if not (agent_path := self.out_path / "agent_chunks").is_dir():
+            agent_path.mkdir()
 
         start_time = time.perf_counter()
         # for i, (start, end) in enumerate(zip(starts, ends, strict=True)):
         for i, (start, end) in enumerate(zip(starts, ends)):  # noqa: B905
-            fn = self.out_path / f"agents_{i}.pqt"
+            fn = self.out_path / "agent_chunks" / f"agents_{i}.pqt"
             agent_df.iloc[start:end].to_parquet(fn)
 
             job_name = f"{self.run_name}_{i}"
@@ -218,7 +212,7 @@ class MultiProcess:
             )
 
             if job_id:
-                jobs.append(job_id)
+                job_chunk_map[job_id] = i
                 print(f"Kicked off job: {job_name}, with SLURM {job_id=} on Eagle.")
             else:
                 print(
@@ -226,5 +220,6 @@ class MultiProcess:
                 )
 
         # Check on the job statuses until they're complete, then aggregate the results
+        jobs = [*job_chunk_map]
         self.check_status(jobs, start_time)
-        self.aggregate_outputs()
+        return job_chunk_map

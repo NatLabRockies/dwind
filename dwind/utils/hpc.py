@@ -1,5 +1,14 @@
-import time
+"""Provides the live timing table functionalities for the Kestrel :py:class:`MultiProcess` class."""
 
+from __future__ import annotations
+
+import io
+import re
+import time
+import subprocess
+from copy import deepcopy
+
+import pandas as pd
 from rich.table import Table
 from rex.utilities.hpc import SLURM
 
@@ -68,7 +77,7 @@ def update_status(job_status: dict) -> dict:
     return update
 
 
-def generate_table(job_status: dict) -> tuple[Table, bool]:
+def generate_run_status_table(job_status: dict) -> tuple[Table, bool]:
     """Generate the job status run time statistics table.
 
     Args:
@@ -92,5 +101,38 @@ def generate_table(job_status: dict) -> tuple[Table, bool]:
         table.add_row(
             job, status, convert_seconds_for_print(_wait), convert_seconds_for_print(_run)
         )
-    done = all(el["status"] in ("CG", None) for el in job_status.values())
+    done = all(el["status"] in ("CG", "CF", None) for el in job_status.values())
     return table, done
+
+
+def get_finished_run_status(jobs: int | str | list[int | str]) -> dict[str, str]:
+    """Extracts a dictionary of job_id and status from the ``sacct`` output for a single
+    job or series of jobs.
+
+    Args:
+        jobs (int | str | list[int  |  str]): Single job ID or list of job IDs that have finished
+            running.
+
+    Returns:
+        dict[str, str]: Dictionary of {job_id_1: status_1, ..., job_id_N: status_N}.
+    """
+    if isinstance(jobs, (int, str)):  # noqa
+        jobs = [jobs]
+    jobs = [str(j) for j in jobs]
+
+    # Format the command to be in the form of [sacct, -j, job_id_1, ..., -j job_id_N]
+    command = deepcopy(jobs)
+    for i in range(len(command) - 1, -1, -1):
+        command.insert(i, "-j")
+    command.insert(0, "sacct")
+    results = subprocess.check_output(command)
+
+    # Convert the sacct string output to be table-like
+    buffer = io.StringIO(results.decode("utf8", "ignore"))
+    lines = [re.split(" +", line) for line in buffer.readlines() if not line.startswith("-")]
+
+    # Create a dataframe, and export a dictionary of the form job_id: job_status
+    df = pd.DataFrame(lines[1:], columns=lines[0])
+    df = df.loc[df.JobID.isin(jobs), ["JobID", "State"]]
+    df.JobID = df.JobID.astype(int)
+    return dict(df.values.tolist())

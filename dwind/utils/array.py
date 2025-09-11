@@ -1,11 +1,25 @@
+"""Provides a series of generic NumPy and Pandas utility functions."""
+
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
 
-def memory_downcaster(df):
-    assert isinstance(df, pd.DataFrame) | isinstance(df, pd.Series)
+def memory_downcaster(df: pd.DataFrame | pd.Series) -> pd.DataFrame | pd.Series:
+    """Downcasts ``int`` and ``float`` columns to the lowest memory alternative possible. For
+    integers this means converting to either signed or unsigned 8-, 16-, 32-, or 64-bit integers,
+    and for floats, converting to ``np.float32``.
+
+    Args:
+        df (pd.DataFrame | pd.Series): DataFrame or Series to have its memory footprint reduced.
+
+    Returns:
+        pd.DataFrame | pd.Series: Reduced footprint version of the passed :py:attr:`df`.
+    """
+    # if not isinstance(df, pd.DataFrame | pd.Series):
+    if not isinstance(df, (pd.DataFrame, pd.Series)):  # noqa
+        raise TypeError("Input value must be a Pandas DataFrame or Series.")
 
     NAlist = []
     for col in df.select_dtypes(include=[np.number]).columns:
@@ -53,93 +67,6 @@ def memory_downcaster(df):
         else:
             df[col] = df[col].astype(np.float32)
 
-    return df
-
-
-def interpolate_array(row, col_1, col_2, col_in, col_out):
-    if row[col_in] != 0:
-        interpolated = row[col_in] * (row[col_2] - row[col_1]) + row[col_1]
-    else:
-        interpolated = row[col_1]
-
-    row[col_out] = interpolated
-
-    return row
-
-
-def scale_array_precision(df: pd.DataFrame, hourly_col: str, prec_offset_col: str):
-    """Scales the precision of :py:attr:`hourly_col` by the :py:attr:`prec_offset_col`.
-
-    Args:
-        df (pd.DataFrame): A Pandas DataFrame containing :py:att:`hourly_col` and
-            :py:att:`prec_offset_col`.
-        hourly_col (str) The column to adjust the precision.
-        prec_offset_col (str): The column for scaling the precison of :py:attr:`hourly_col`.
-
-    Returns:
-        pd.DataFrame: The input :py:attr:`df` with the precision of :py:attr:`hourly_col` scaled.
-    """
-    df[hourly_col] = (
-        np.array(df[hourly_col].values.tolist(), dtype="float64")
-        / df[prec_offset_col].values.reshape(-1, 1)
-    ).tolist()
-    return df
-
-
-def scale_array_deprecision(df: pd.DataFrame, col: str | list[str]) -> pd.DataFrame:
-    """Rounds the column(s) :py:attr:`col` to the nearest 2nd decimal and converts to NumPy's
-    float32.
-
-    Args:
-        df (pd.DataFrame): A Pandas DataFrame containing :py:att:`col`.
-        col (str | list[str]): The column(s) to have reduced precision.
-
-    Returns:
-        pd.DataFrame: The input :py:attr:`df` with the precision of :py:attr:`col` lowered.
-    """
-    df[col] = np.round(np.round(df[col], 2).astype(np.float32), 2)
-    return df
-
-
-def scale_array_sum(df: pd.DataFrame, hourly_col: str, scale_col: str) -> pd.DataFrame:
-    """Scales the :py:attr:`hourly_col` by its sum and multiples by the :py:attr:`scale_col`.
-
-    Args:
-        df (pd.DataFrame): Pandas DataFrame containing the :py:attr:`hourly_col` and
-            :py:attr:`scale_col`.
-        hourly_col (str): The name of the column to be scaled whose values are lists.
-        scale_col (str): The column to scale the :py:attr:`hourly_col`.
-
-    Returns:
-        pandas.DataFrame: The input dataframe, but with the values of the :py:attr:`hourly_col`
-            scaled appropriately.
-    """
-    hourly_array = np.array(df[hourly_col].values.tolist())
-    df[hourly_col] = (
-        hourly_array / hourly_array.sum(axis=1).reshape(-1, 1) * df[scale_col].values.reshape(-1, 1)
-    ).tolist()
-    return df
-
-
-def scale_array_multiplier(
-    df: pd.DataFrame, hourly_col: str, multiplier_col: str, col_out: str
-) -> pd.DataFrame:
-    """Scales the :py:attr:hourly_col` values by the :py:attr:`multiplier_col`, and places it in
-    the :py:attr:`col_out`.
-
-    Args:
-        df (pd.DataFrame): The Pandas DataFrame containing the :py:attr:`hourly_col` and
-            :py:attr:`multiplier_col`.
-        hourly_col (str): A column of hourly values as a list of floats in each cell.
-        multiplier_col (str): The column used to scale the :py:attr:`hourly_col`.
-        col_out (str): A new column that will contain the scaled data.
-
-    Returns:
-        pd.DataFrame: A new copy of the original data (:py:attr:`df`) containing the
-            :py:attr:`col_out` column.
-    """
-    hourly_array = np.array(df[hourly_col].values.tolist())
-    df[col_out] = (hourly_array * df[multiplier_col].values.reshape(-1, 1)).tolist()
     return df
 
 

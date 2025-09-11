@@ -1,3 +1,7 @@
+"""Provides the primary ``Agent`` and ``Model`` classes for loading, preparing, and analyzing
+parcel data.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -7,8 +11,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from dwind import Configuration, resource, scenarios, valuation, btm_sizing
-from dwind.utils import array
+from dwind import resource, scenarios, valuation, btm_sizing
+from dwind.config import Year, Sector, CRBModel, Scenario, Configuration
 
 
 # POTENTIALLY DANGEROUS!
@@ -21,18 +25,6 @@ class Agents:
     Agents are the modified parcels that have been truncated to the largest circle able
     to be contained in the parcel, and contain all of the relevant tax lot and
     geographic variables that would be found in a parcel.
-
-    Parameters
-    ---------
-    agent_file : str | pathlib.Path
-        Either a parquet file (.pqt or .parquet) or pickle file (.pkl or .pickle)
-        containing the previously generated agent data.
-
-    Raises:
-    ------
-    ValueError
-        Raised if the :py:attr:`agent_file` does not have a valid file extension for
-        either a pickle file (.pkl or .pickle) or a parquet file (.pqt or .parquet).
     """
 
     def __init__(
@@ -43,8 +35,23 @@ class Agents:
         *,
         resource_year: int = 2018,
     ):
+        """Initialize an instance of the Agent class.
+
+        Args:
+            agent_file (str | pathlib.Path): Either a parquet file (.pqt or .parquet), pickle
+                file (.pkl or .pickle), or CSV file (.csv) containing the previously generated
+                agent data.
+            sector (str | None): One of "fom" (front-of-meter), "btm" (behind-the-meter), or None.
+                Only use None if the agent data do not need to have the :py:meth:`prepare` method
+                be run.
+            model_config (str | Path, optional): Full file path to the overall model configuration
+                TOML file containing SQL connections, data locations, and etc.
+            resource_year (int, optional): The reV resource year basis. This should either be 2012
+                or 2018, but it is assumed the data were created using the 2012 reV lookups.
+                Defaults to 2018.
+        """
         self.agent_file = Path(agent_file).resolve()
-        self.sector = sector
+        self.sector = sector if sector is None else Sector(sector)
         self.config = model_config
         self.resource_year = resource_year
         self._load_agents()
@@ -63,6 +70,9 @@ class Agents:
 
         Args:
             agent_file (str | Path): The full file path of the agent parquet, CSV, or pickle data.
+            sector (str): One of "fom" (front-of-meter) or "btm" (behind-the-meter).
+            model_config (str | Path, optional): Full file path to the overall model configuration
+                TOML file containing SQL connections, data locations, and etc.
             save_results (bool, optional): True to save any updates to the data. Defaults to False.
             file_name (str | Path | None, optional): The file path and name for where to save the
                 prepared data, if not overwriting the existing agent data. Defaults to None.
@@ -103,7 +113,7 @@ class Agents:
                 f"File types ending in {suffix} can't be read as pickle, parquet, or CSV"
             )
 
-        self.agents = file_reader(self.agent_file)
+        self.agents = file_reader(self.agent_file, dtype_backend="pyarrow")
         if suffix == ".csv":
             self.agents = self.agents.reset_index(drop=True)
 
@@ -128,6 +138,15 @@ class Agents:
         self.merge_generation()
 
     def save_agents(self, file_name: str | Path | None = None):
+        """Save the prepared agent data to the path provided in :py:attr:`file_name`.
+
+        Args:
+            file_name (str | Path, optional): Full file path and name for where to save the agent
+                data. Must end in a valid pickle, parquet, or csv extension. Defaults to None.
+
+        Raises:
+            ValueError: _description_
+        """
         if file_name is None:
             file_name = self.agent_file
 
@@ -146,10 +165,14 @@ class Agents:
         file_saver(file_name)
 
     def merge_census_data(self):
+        """Merges the census tract identifies based on the agent "gid" and census "pgid" identifier
+        columns.
+        """
         census_tracts = pd.read_csv(
             "/projects/dwind/configs/sizing/wind/lkup_block_to_pgid_2020.csv",
             usecols=["pgid", "fips_block"],
             dtype=str,
+            dtype_backend="pyarrow",
         ).drop_duplicates()
         census_tracts["census_tract_id"] = [el[:11] for el in census_tracts["fips_block"]]
         self.agents = (
@@ -158,14 +181,18 @@ class Agents:
             .reset_index(drop=True)
         )
 
-    def update_rev_id(self, resource_year="2018"):
+    def update_rev_id(self):
         """Update 2012 rev index to 2018 index."""
-        if resource_year != "2018":
+        if self.resource_year != 2018:
             return
 
         index_file = "/projects/dwind/configs/rev/wind/lkup_rev_index_2012_to_2018.csv"
         rev_index_map = (
-            pd.read_csv(index_file, usecols=["rev_index_wind_2012", "rev_index_wind_2018"])
+            pd.read_csv(
+                index_file,
+                usecols=["rev_index_wind_2012", "rev_index_wind_2018"],
+                dtype_backend="pyarrow",
+            )
             .rename(columns={"rev_index_wind_2012": "rev_index_wind"})
             .set_index("rev_index_wind")
         )
@@ -190,21 +217,27 @@ class Agents:
             )
 
     def merge_generation(self):
-        if self.resource_year != "2018":
+        """Load and merge the resource potential data for the 2018 reV basis only. See
+        :py:class:`dwind.resource.ResourcePotential` for more information.
+        """
+        if self.resource_year != 2018:
             return
 
         # update 2012 rev cf/naep/aep to 2018 values
-        # self.agents = self.agents.drop(columns=["wind_naep", "wind_cf", "wind_aep"])
         resource_potential = resource.ResourcePotential(
             parcels=self.agents,
-            application=self.sector,
+            sector=self.sector,
             year=self.resource_year,
-            model_config=self.model_config,
+            model_config=self.config,
         )
         self.agents = resource_potential.match_rev_summary_to_agents()
 
 
 class Model:
+    """Primary dwind model that is responsible for gathering and connecting the various data points
+    by parcel.
+    """
+
     def __init__(
         self,
         agents: pd.DataFrame,
@@ -216,33 +249,51 @@ class Model:
         model_config: str | Path,
         chunk_ix: int | None = None,
     ):
+        """Initializes a :py:class:`Model` instance.
+
+        Args:
+            agents (pd.DataFrame): Prepared agent data with correct census and reV resource data
+                already attached.
+            location (str): Priority class or "<state>_<county>" string.
+            sector (str): One of "fom" (front-of-meter) or "btm" (behind-the-meter).
+            scenario (str): Currently only accepts "baseline" as an input.
+            year (int): One of 2022, 2025, 2035, or 2040 for the analysis year.
+            out_path (str | Path): Path for where to save any logging or output data.
+            model_config (str | Path): The overarching model configuration TOML file containing
+                key SQL connectors, data locations, and general model settings.
+            chunk_ix (int | None, optional): Integer representation of the chunk being run, if whole
+                agent file is being run, then None. Defaults to None.
+        """
         if chunk_ix is None:
             chunk_ix = 0
         self.agents = agents
         self.out_path = Path(out_path).resolve()
 
         self.full_scenario = f"{location}_{sector}_{scenario}_{year}"
-        self.run_name = f"{self.full_scenario}_{chunk_ix}"
+        self.run_name = f"{self.full_scenario}"
+        if chunk_ix is not None:
+            self.run_name += f"_{chunk_ix}"
         self.location = location
-        self.sector = sector
-        self.scenario = scenario
-        self.year = year
+        self.sector = Sector(sector)
+        self.scenario = Scenario(scenario)
+        self.year = Year(year)
         self.config = Configuration(model_config)
 
-        self.init_logging()
+        self._init_logging()
 
         t_dict = self.config.rev.turbine_class_dict
-        if self.sector == "fom":
+        if self.sector is Sector.FOM:
             apps = ["BTM, FOM", "BTM, FOM, Utility", "FOM, Utility"]
             self.agents["turbine_class"] = self.agents["wind_size_kw_fom"].map(t_dict)
-        else:
+        elif self.sector is Sector.BTM:
             apps = ["BTM", "BTM, FOM", "BTM, FOM, Utility"]
             self.agents["turbine_class"] = self.agents["wind_size_kw"].map(t_dict)
 
         # filter by sector
         self.agents = self.agents[self.agents["application"].isin(apps)]
 
-    def init_logging(self):
+    def _init_logging(self):
+        """Initializing the logging to :py:attr:`out_path` / logs / dwfs.txt."""
         log_dir = self.out_path / "logs"
         if not log_dir.exists():
             log_dir.mkdir()
@@ -258,13 +309,16 @@ class Model:
 
         self.log = logging.getLogger("dwfs")
 
-    def get_rates(self):
+    def _get_rates(self):
+        """Retrieves the tariff rates and merges them based on the "rate_id_alias" column."""
         self.agents = self.agents[~self.agents["rate_id_alias"].isna()]
         self.agents["rate_id_alias"] = self.agents["rate_id_alias"].astype(int)
         rate_ids = np.unique(self.agents.rate_id_alias.values)
 
         tariff = (
-            pd.read_parquet("/projects/dwind/data/tariffs/2025_tariffs.pqt")
+            pd.read_parquet(
+                "/projects/dwind/data/tariffs/2025_tariffs.pqt", dtype_backend="pyarrow"
+            )
             .loc[rate_ids]
             .reset_index(drop=False)  # , names="rate_id_alias")
         )
@@ -274,25 +328,27 @@ class Model:
 
         self.agents = self.agents.merge(tariff, how="left", on="rate_id_alias")
 
-    def get_load(self):
-        consumption_hourly = pd.read_parquet("/projects/dwind/data/crb_consumption_hourly.pqt")
-
-        consumption_hourly["scale_offset"] = 1e8
-        consumption_hourly = array.scale_array_precision(
-            consumption_hourly, "consumption_hourly", "scale_offset"
-        )
-
-        self.agents = self.agents.merge(
-            consumption_hourly, how="left", on=["crb_model", "hdf_index"]
-        )
+    def _get_load(self):
+        """Retrieves the energy demand data, combines it with the agent data based on
+        the agent "land_use", "bldg_type", and "state_fips" columns, then scales the
+        consumption data based on the load.
+        """
+        self.agents["crb_model_index"] = self.agents.crb_model.replace(
+            CRBModel.str_model_map()
+        ).astype("uint8[pyarrow]")
 
         # update load based on scaling factors from 2024 consumption data
         f = "/projects/dwind/data/parcel_landuse_load_application_mapping.csv"
-        bldg_types = pd.read_csv(f)[["land_use", "bldg_type"]]
+        bldg_types = pd.read_csv(f, usecols=["land_use", "bldg_type"], dtype_backend="pyarrow")
         self.agents = self.agents.merge(bldg_types, on="land_use", how="left")
 
         f = "/projects/dwind/data/consumption/2024/load_scaling_factors.csv"
-        sfs = pd.read_csv(f, dtype={"state_fips": str})[["state_fips", "bldg_type", "load_sf_2024"]]
+        sfs = pd.read_csv(
+            f,
+            dtype={"state_fips": str},
+            usecols=["state_fips", "bldg_type", "load_sf_2024"],
+            dtype_backend="pyarrow",
+        )
         self.agents = self.agents.merge(sfs, on=["state_fips", "bldg_type"], how="left")
         self.agents["load_kwh"] *= self.agents["load_sf_2024"]
         self.agents["max_demand_kw"] *= self.agents["load_sf_2024"]
@@ -302,13 +358,15 @@ class Model:
             # get county_id to nerc_region_abbr lkup
             # from diffusion_shared.county_nerc_join (dgen_db_fy23q4_ss23)
             f = "/projects/dwind/data/county_nerc_join.csv"
-            nerc_regions = pd.read_csv(f)[["county_id", "nerc_region_abbr"]]
+            nerc_regions = pd.read_csv(
+                f, usecols=["county_id", "nerc_region_abbr"], dtype_backend="pyarrow"
+            )
             self.agents = self.agents.merge(nerc_regions, on=["county_id"], how="left")
 
             # get load growth projects from AEO
             # from diffusion_shared.aeo_load_growth_projections_nerc_2023_updt (dgen_db_fy23q4_ss23)
             f = "/projects/dwind/data/consumption/aeo_load_growth_projections_nerc_2023_updt.csv"
-            load_growth = pd.read_csv(f)
+            load_growth = pd.read_csv(f, dtype_backend="pyarrow")
             load_growth = load_growth.loc[
                 load_growth["scenario"].eq("AEO2023 Reference case")
                 & load_growth["year"].eq(self.year),
@@ -323,20 +381,24 @@ class Model:
             self.agents["max_demand_kw"] *= self.agents["load_multiplier"]
             self.agents = self.agents.drop(columns=["load_multiplier", "nerc_region_abbr"])
 
-        self.agents = array.scale_array_sum(self.agents, "consumption_hourly", "load_kwh")
-
-    def get_nem(self):
-        if self.scenario == "metering":
+    def _get_nem(self):
+        """Retrieves the NEM data and merges with the agent data based on the "state_abbr" and
+        "sector_abbr" columns.
+        """
+        if self.scenario is Scenario.METERING:
             self.agents["compensation_style"] = "net metering"
             self.agents["nem_system_kw_limit"] = 1000000000
-        elif self.scenario == "billing":
+        elif self.scenario is Scenario.BILLING:
             self.agents["compensation_style"] = "net billing"
             self.agents["nem_system_kw_limit"] = 1000000000
         else:
             cols = ["state_abbr", "sector_abbr", "compensation_style", "nem_system_kw_limit"]
             nem_scenario_csv = scenarios.config_nem(self.scenario, self.year)
             nem_df = (
-                pd.read_csv(self.config.project.DIR / f"data/nem/{nem_scenario_csv}")
+                pd.read_csv(
+                    self.config.project.DIR / f"data/nem/{nem_scenario_csv}",
+                    dtype_backend="pyarrow",
+                )
                 .rename(columns={"max_pv_kw_limit": "nem_system_kw_limit"})
                 .loc[:, cols]
             )
@@ -356,14 +418,15 @@ class Model:
                 ] = "net billing"
 
     def prepare_agents(self):
-        if self.sector == "btm":
+        """Prepare the :py:attr:`tech`- and :py:attr:`sector`-specific agent data."""
+        if self.sector is Sector.BTM:
             # map tariffs
             self.log.info("....running with pre-processed tariffs")
-            self.get_rates()
+            self._get_rates()
 
             # get hourly consumption
             self.log.info("....fetching hourly consumption")
-            self.get_load()
+            self._get_load()
 
             if self.config.project.settings.SIZE_SYSTEMS:
                 # size btm systems
@@ -372,9 +435,9 @@ class Model:
 
             # map nem policies
             self.log.info("....processing NEM for BTM systems")
-            self.get_nem()
+            self._get_nem()
 
-        if self.sector == "fom":
+        if self.sector is Sector.FOM:
             if self.config.project.settings.SIZE_SYSTEMS:
                 # for fom agents, take largest wind turbine
                 self.agents.sort_values(
@@ -414,16 +477,17 @@ class Model:
                     )
 
     def run_valuation(self):
+        """Runs the valuation model to create the PySAM financial results."""
         valuer = valuation.ValueFunctions(self.scenario, self.year, self.config)
 
-        if self.sector == "btm":
+        if self.sector is Sector.BTM:
             self.agents["application"] = "BTM"
 
             if len(self.agents) > 0:
                 self.log.info("\n")
                 self.log.info(f"starting valuation for {len(self.agents)} BTM agents")
 
-                self.agents = valuer.run_multiprocessing(self.agents, sector="btm")
+                self.agents = valuer.run(agents=self.agents, sector=self.sector)
 
                 self.log.info("null counts:")
                 self.log.info(self.agents.isnull().sum().sort_values())
@@ -443,14 +507,14 @@ class Model:
             else:
                 self.agents = pd.DataFrame()
 
-        if self.sector == "fom":
+        if self.sector is Sector.FOM:
             self.agents["application"] = "FOM"
 
             if len(self.agents) > 0:
                 self.log.info("\n")
                 self.log.info(f"starting valuation for {len(self.agents)} FOM agents")
 
-                self.agents = valuer.run_multiprocessing(self.agents, "fom")
+                self.agents = valuer.run(agents=self.agents, sector=self.sector)
 
                 self.log.info("null counts:")
                 self.log.info(self.agents.isnull().sum().sort_values())
@@ -468,5 +532,6 @@ class Model:
                 self.agents = pd.DataFrame()
 
     def run(self):
+        """Runs the whole model."""
         self.prepare_agents()
         self.run_valuation()

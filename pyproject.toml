@@ -27,6 +27,7 @@ dependencies = [
     "fastparquet",
     "h5pyd",
     "typer",
+    "rich",
     "tomli >= 1.1.0 ; python_version < '3.11'",
 ]
 keywords = [
@@ -52,7 +53,7 @@ classifiers = [
 ]
 
 [project.scripts]
-dwind = "dwind.run:app"
+dwind = "dwind.main:app"
 
 [project.urls]
 source = "https://github.com/NREL/dwind"
@@ -116,7 +117,7 @@ ignore-init-module-imports = true
 
 # See https://github.com/charliermarsh/ruff#supported-rules
 # for rules included and matching to prefix.
-select = ["F", "E", "W", "C4", "UP", "B", "A", "PTH", "PERF", "FURB", "NPY", "Q", "RUF"] # , "D"
+select = ["F", "E", "W", "C4", "UP", "B", "A", "PTH", "PERF", "FURB", "NPY", "Q", "RUF", "D", "DOC"]
 
 # D205: not using summary lines and descriptions, just descriptions
 # D401: don't believe enough in imperative mode to make all the changes currently
