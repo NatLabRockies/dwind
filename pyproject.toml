@@ -58,8 +58,8 @@ dwind = "dwind.main:app"
 [project.urls]
 source = "https://github.com/NREL/dwind"
 issues = "https://github.com/NREL/dwind/issues"
-# documentation = "https://nrel.github.io/dwind/"
-# changelog = "https://github.com/NREL/dwind/blob/main/CHANGELOG.md"
+documentation = "https://nrel.github.io/dwind/"
+changelog = "https://github.com/NREL/dwind/blob/main/CHANGELOG.md"
 
 # TODO
 [project.optional-dependencies]
