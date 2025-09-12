@@ -69,6 +69,8 @@ dev = [
     "ruff",
     "pytest",
     "pytest-cov",
+    "jupyter-book",
+    "sphinx-autodoc-typehints",
 ]
 
 [tool.setuptools]
