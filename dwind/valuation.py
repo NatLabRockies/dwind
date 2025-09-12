@@ -591,7 +591,7 @@ def find_breakeven(
         batt_costs (float): Battery costs.
         pysam_outputs (list[str]): List of PySAM output variables to return with the breakeven
             cost.
-        method (str): Name of the optimization strategy. Must be on of "bisect", "brentq",
+        method (str): Name of the optimization strategy. Must be one of "bisect", "brentq",
             "grid_search", or "newton".
         pre_calc_bounds_and_tolerances (bool, optional): Flag to pre-calculate the bounds for the
             bisect adn brentq optimization methods.
@@ -599,19 +599,18 @@ def find_breakeven(
             see the documentation for the "brentq", "bisect", and "newton" methods on the
             `scipy optimize API reference site`_
 
-            # TODO: parameterize the default values.
-
     Raises:
         ValueError: Raised if the optimization was unable to find a viable solution
         ValueError: Raised for an unknown :py:attr:`method`.
 
     Returns:
-        pd.DataFrame: Returned when :py:attr:`method` is "grid_search"
-        tuple[float, dict]: Returns the breakeven cost and PySAM outputs specified in
+        Returns one of the following
+
+        - pd.DataFrame: Returned when :py:attr:`method` is "grid_search"
+        - tuple[float, dict]: Returns the breakeven cost and PySAM outputs specified in
             :py:attr:`pysam_outputs` when :py:attr:`method` is "brentq", "bisect", or "newton".
 
-    .. _scipy optimize API reference site:
-       https://docs.scipy.org/doc/scipy/reference/optimize.html#scalar-functions
+    .. _scipy optimize API reference site: https://docs.scipy.org/doc/scipy/reference/optimize.html#scalar-functions
     """
     method = Optimization(method)
 
@@ -802,7 +801,7 @@ def find_breakeven_fom(
     Args:
         row (pd.Series): Single row of the agent DataFrame.
         financial (:py:class:`PySAM.Merchantplant`): Configured ``PVWattsMerchantPlant``  or
-        :py:class:`PySAM.WindPowerMerchantplant` object.
+            :py:class:`PySAM.WindPowerMerchantplant` object.
         pysam_outputs (list[str]): List of PySAM output variables to return with the breakeven
             cost.
         method (str): Name of the optimization strategy. Must be on of "bisect", "brentq",
@@ -813,15 +812,15 @@ def find_breakeven_fom(
             see the documentation for the "brentq", "bisect", and "newton" methods on the
             `scipy optimize API reference site`_
 
-            # TODO: parameterize the default values.
-
     Raises:
         ValueError: Raised if the optimization was unable to find a viable solution
         ValueError: Raised for an unknown :py:attr:`method`.
 
     Returns:
-        pd.DataFrame: Returned when :py:attr:`method` is "grid_search"
-        tuple[float, dict]: Returns the breakeven cost and PySAM outputs specified in
+        Returns one of the following
+
+        - pd.DataFrame: Returned when :py:attr:`method` is "grid_search"
+        - tuple[float, dict]: Returns the breakeven cost and PySAM outputs specified in
             :py:attr:`pysam_outputs` when :py:attr:`method` is "brentq", "bisect", or "newton".
 
     .. _scipy optimize API reference site:
