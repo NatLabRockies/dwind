@@ -48,7 +48,6 @@ sphinx:
   - "sphinx.ext.napoleon"
   - 'sphinx.ext.viewcode'
   - 'sphinx_autodoc_typehints'
-  - 'sphinxcontrib.autoyaml'
   language: 'python'
   autosummary_generate: true
   suppress_warnings:
