@@ -121,9 +121,10 @@ class Agents:
         """Prepares the agent data so that it has the necessary columns required for modeling.
 
         Steps:
+
         1. Extract `state_fips` from the `fips_code` column.
-        2. If `census_tract_id` is missing, load and merge the 2020 census tracts
-          based on the `pgid` column.
+        2. If `census_tract_id` is missing, load and merge the 2020 census tracts based on the
+            `pgid` column.
         3. Convert the 2012 rev ID to the 2018 rev id in `rev_index_wind`.
         4. Attach the universal resource generation data.
         """
