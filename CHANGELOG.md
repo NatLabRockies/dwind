@@ -5,6 +5,7 @@
 - Creates the documentation site for an API reference guide on both the CLI and underlying code.
 - Removes extraneous files carried over from internal analysis work.
 - Updates the dependency stack to support building the documentation.
+- Fixes miscellaneous typing and docstring issues.
 
 
 ## v0.3.2 - 11 September 2025
