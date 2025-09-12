@@ -1,4 +1,4 @@
-name: deploy-book
+name: deploy-docs
 
 # Run this when the master or main branch changes
 on:
@@ -7,7 +7,7 @@ on:
     - main
 
 jobs:
-  deploy-book:
+  deploy-docs:
     runs-on: ubuntu-latest
     permissions:
       pages: write
