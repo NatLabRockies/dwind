@@ -21,24 +21,16 @@ console = Console()
 def year_callback(ctx: typer.Context, param: typer.CallbackParam, value: int):
     """Typer helper to validate the year input.
 
-    Parameters
-    ----------
-    ctx : typer.Context
-        The Typer context.
-    param : typer.CallbackParam
-        The Typer parameter.
-    value : int
-        User input for the analysis year basis, must be one of 2022, 2024, or 2025.
+    Args:
+        ctx (typer.Context): The Typer context.
+        param (typer.CallbackParam): The Typer parameter.
+        value (int): User input for the analysis year basis, must be one of 2022, 2024, or 2025.
 
     Returns:
-    -------
-    int
-        The input :py:param:`value`, if it is a valid input.
+        int: The input :py:attr:`value`, if it is a valid input.
 
     Raises:
-    ------
-    typer.BadParameter
-        Raised if the input is not one of 2022, 2024, or 2025.
+        typer.BadParameter: Raised if the input is not one of 2022, 2024, or 2025.
     """
     if ctx.resilient_parsing:
         return

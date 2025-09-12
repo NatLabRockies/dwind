@@ -14,6 +14,7 @@ of the available functionality best accessed through the CLI.
    run
    debug
    collect
+   utils
 
 Run
 ---
