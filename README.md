@@ -1,5 +1,14 @@
 # Distributed Wind Generation Model (dWind)
 
+[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+![PyPI - Version](https://img.shields.io/pypi/v/dwind)
+[![Jupyter Book](https://jupyterbook.org/badge.svg)](https://nrel.github.io/dwind)
+
+[![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
+[![isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+
 Please note that at this time the model can only be run on NREL's Kestrel HPC system. Though a
 savvy user could recreate our data in their own computing environment and update the
 internal pointers in the example configuration at `examples/larimer_county_btm_baseline_2025.toml`
@@ -57,16 +66,12 @@ model configuration described above.
 
 ### Run the model
 
-`dwind` has a robust CLI interface allowing for the usage of `python path/to/dwind/dwind/run.py` or
-`dwind`. The model currently supports the run prompts:
-- `dwind run-config <run-configuration.toml>
-- `dwind run-hpc --arg1 ... --argn` where the `--arg` parameters are used in place of the run TOML
-  file.
-
-If at any point, further guidance is needed, pass `--help` to `dwind` or any of the subcommands for
-detailed information on the required and optional inputs.
+`dwind` has a robust CLI interface allowing for the usage of `python path/to/dwind/dwind/main.py` or
+by directly calling`dwind`. For more details on using the CLI, use the `--help` flag, or visit our
+CLI documentation page https://nrel.github.io/dwind/cli.html
 
 To run the model, it is recommended to use the following workflow from your analysis folder.
+
 1. Start a new `screen` session on Kestrel.
 
    ```bash
@@ -90,35 +95,8 @@ To run the model, it is recommended to use the following workflow from your anal
 4. Run the model.
 
    ```bash
-   dwind run-config examples/larimer_county_btm_baseline_2025.toml
+   dwind run config examples/larimer_county_btm_baseline_2025.toml
    ```
 
 5. Disconnect your screen `Ctrl` + `a` + `d` and wait for the analysis to complete and view your
    results.
-
-## `dwind` run settings
-
-### `run-config`
-
-```bash
-*    config_path      TEXT  Path to configuration TOML with run and model parameters. [default: None] [required]
-```
-
-### `run-hpc`
-
-```bash
- *  --location            TEXT        The state, state_county, or priority region to run. [default: None] [required]
- *  --sector              [fom|btm]   One of fom (front of meter) or btm (back-of-the-meter). [default: None] [required]
- *  --scenario            [baseline]  The scenario to run (baseline is the current only option). [default: None] [required]
- *  --year                INTEGER     The assumption year for the analysis. Options are 2022, 2024, and 2025. [default: None] [required]
- *  --repository          TEXT        Path to the dwind repository to use when running the model. [default: None] [required]
- *  --nodes               INTEGER     Number of HPC nodes or CPU nodes to run on. -1 indicates 75% of CPU limit. [default: None] [required]
- *  --allocation          TEXT        HPC allocation name. [default: None] [required]
- *  --memory              INTEGER     Node memory, in GB (HPC only). [default: None] [required]
- *  --walltime            INTEGER     Node walltime request, in hours. [default: None] [required]
- *  --feature             TEXT        Additional flags for the SLURM job, using formatting such as --qos=high or --depend=[state:job_id]. [default: None] [required]
- *  --env                 TEXT        The path to the dwind Python environment that should be used to run the model. [default: None] [required]
- *  --model-config        TEXT        Complete file name and path of the model configuration file [default: None] [required]
- *  --dir-out             TEXT        Path to where the chunked outputs should be saved. [default: None] [required]
- *  --stdout-path         TEXT        The path to write stdout logs. [default: None]
-```
