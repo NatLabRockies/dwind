@@ -53,6 +53,13 @@ class Scenario(str, ValuesMixin, Enum):
     LOWRECOST: Annotated[str, "Low renewable adoption"] = "lowrecost"
 
 
+class IncentiveScenario(str, ValuesMixin, Enum):
+    """Enum validator for the incentive scenario to run."""
+
+    STANDARD: Annotated[str, "Standard scenario to compare alternatives."] = "standard"
+    NOINCENTIVES: Annotated[str, "Zero incentives"] = "no_incentives"
+
+
 class Year(ValuesMixin, IntEnum):
     """Enum validator for analysis year."""
 
