@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4 - 28 April 2026
 
 - Code updated to be compatible with PySAM 7.1+ releases.
   - Updates the `pyproject.tom` and `environment.yml` specifications so internal users
@@ -16,7 +16,6 @@
 - Removes extraneous files carried over from internal analysis work.
 - Updates the dependency stack to support building the documentation.
 - Fixes miscellaneous typing and docstring issues.
-
 
 ## v0.3.2 - 11 September 2025
 
