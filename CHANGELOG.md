@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Code updated to be compatible with PySAM 7.1+ releases.
+  - Updates the `pyproject.tom` and `environment.yml` specifications so internal users
+    can run the model without additional setup steps.
+  - Default configurations updated.
+  - Utilizes `from_existing` function to share data with existing PySAM classes.
+  - Minor bug fixes and logging cleanup.
+- Adds an `IncentiveScenario` to all run configuration options for "standard" and "no incentives".
+
 ## v0.3.3 - 12 September 2025
 
 - Creates the documentation site for an API reference guide on both the CLI and underlying code.

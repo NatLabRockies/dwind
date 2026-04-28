@@ -1,4 +1,5 @@
-# CLI
+(cli)=
+# `dwind` Command Line Interface
 
 **Usage**:
 
@@ -46,7 +47,7 @@ Run dwind via the HPC multiprocessing interface.
 **Usage**:
 
 ```console
-$ dwind run hpc [OPTIONS] LOCATION SECTOR:{fom|btm} SCENARIO:{baseline|metering|billing|highrecost|lowrecost} YEAR REPOSITORY NODES ALLOCATION MEMORY WALLTIME FEATURE ENV MODEL_CONFIG DIR_OUT
+$ dwind run hpc [OPTIONS] LOCATION SECTOR:{fom|btm} SCENARIO:{baseline|metering|billing|highrecost|lowrecost} INCENTIVES:{standard|no_incentives} YEAR REPOSITORY NODES ALLOCATION MEMORY WALLTIME FEATURE ENV MODEL_CONFIG DIR_OUT
 ```
 
 **Arguments**:
@@ -54,6 +55,7 @@ $ dwind run hpc [OPTIONS] LOCATION SECTOR:{fom|btm} SCENARIO:{baseline|metering|
 * `LOCATION`: The state, state_county, or priority region to run.  [required]
 * `SECTOR:{fom|btm}`: One of fom (front of meter) or btm (back-of-the-meter).  [required]
 * `SCENARIO:{baseline|metering|billing|highrecost|lowrecost}`: The scenario to run (baseline is the current only option).  [required]
+* `INCENTIVES:{standard|no_incentives}`: The incentive level to consider in the run.  [required]
 * `YEAR`: The assumption year for the analysis. Options are 2022, 2024, and 2025.  [required]
 * `REPOSITORY`: Path to the dwind repository to use when running the model.  [required]
 * `NODES`: Number of HPC nodes or CPU nodes to run on. -1 indicates 75% of CPU limit.  [required]
@@ -80,7 +82,7 @@ Run dwind locally, or via an interactive session where a SLURM job is not schedu
 **Usage**:
 
 ```console
-$ dwind run interactive [OPTIONS] LOCATION SECTOR:{fom|btm} SCENARIO:{baseline|metering|billing|highrecost|lowrecost} YEAR DIR_OUT REPOSITORY MODEL_CONFIG
+$ dwind run interactive [OPTIONS] LOCATION SECTOR:{fom|btm} SCENARIO:{baseline|metering|billing|highrecost|lowrecost} INCENTIVES:{standard|no_incentives} YEAR DIR_OUT MODEL_CONFIG
 ```
 
 **Arguments**:
@@ -88,14 +90,13 @@ $ dwind run interactive [OPTIONS] LOCATION SECTOR:{fom|btm} SCENARIO:{baseline|m
 * `LOCATION`: The state, state_county, or priority region to run.  [required]
 * `SECTOR:{fom|btm}`: One of fom (front of meter) or btm (back-of-the-meter).  [required]
 * `SCENARIO:{baseline|metering|billing|highrecost|lowrecost}`: The scenario to run, such as &#x27;baseline&#x27;.  [required]
+* `INCENTIVES:{standard|no_incentives}`: The incentive level to consider in the run.  [required]
 * `YEAR`: The year basis of the scenario.  [required]
 * `DIR_OUT`: save path  [required]
-* `REPOSITORY`: Path to the dwind repository to use when running the model.  [required]
 * `MODEL_CONFIG`: Complete file name and path of the model configuration file  [required]
 
 **Options**:
 
-* `--kwargs TEXT`: Do not pass arguments here, this is for internal overflow only.  [required]
 * `--help`: Show this message and exit.
 
 ### `dwind run config`
@@ -128,7 +129,7 @@ chunked analysis or debugging.
 **Usage**:
 
 ```console
-$ dwind run chunk [OPTIONS] CHUNK_IX LOCATION SECTOR:{fom|btm} SCENARIO:{baseline|metering|billing|highrecost|lowrecost} YEAR OUT_PATH REPOSITORY MODEL_CONFIG
+$ dwind run chunk [OPTIONS] CHUNK_IX LOCATION SECTOR:{fom|btm} SCENARIO:{baseline|metering|billing|highrecost|lowrecost} INCENTIVES:{standard|no_incentives} YEAR OUT_PATH REPOSITORY MODEL_CONFIG
 ```
 
 **Arguments**:
@@ -137,6 +138,7 @@ $ dwind run chunk [OPTIONS] CHUNK_IX LOCATION SECTOR:{fom|btm} SCENARIO:{baselin
 * `LOCATION`: The state, state_county, or priority region to run.  [required]
 * `SECTOR:{fom|btm}`: One of fom (front of meter) or btm (back-of-the-meter).  [required]
 * `SCENARIO:{baseline|metering|billing|highrecost|lowrecost}`: The scenario to run, such as baseline.  [required]
+* `INCENTIVES:{standard|no_incentives}`: The incentive level to consider in the run.  [required]
 * `YEAR`: The year basis of the scenario.  [required]
 * `OUT_PATH`: save path  [required]
 * `REPOSITORY`: Path to the dwind repository to use when running the model.  [required]
@@ -255,12 +257,13 @@ single cycle.
 **Usage**:
 
 ```console
-$ dwind collect combine-chunks [OPTIONS] DIR_OUT
+$ dwind collect combine-chunks [OPTIONS] DIR_OUT SECTOR:{fom|btm}
 ```
 
 **Arguments**:
 
 * `DIR_OUT`: Path to where the chunked outputs should be saved. Should be the same that was passed to the run command.  [required]
+* `SECTOR:{fom|btm}`: One of fom (front of meter) or btm (back-of-the-meter).  [required]
 
 **Options**:
 

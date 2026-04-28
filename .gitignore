@@ -129,3 +129,7 @@ notebooks/.mapboxtoken
 data/urdb_tariffs/*.json
 data/cambium_csvs/*.csv
 data/geography/block_groups/*
+
+# documentation
+_build/
+autosummary

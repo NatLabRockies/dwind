@@ -11,7 +11,7 @@ from rich.pretty import pprint
 
 from dwind.cli import debug, utils, collect
 from dwind.model import Model
-from dwind.config import Sector, Scenario
+from dwind.config import Sector, Scenario, IncentiveScenario
 
 
 # fmt: off
@@ -35,6 +35,10 @@ def hpc(
     scenario: Annotated[
         Scenario,
         typer.Argument(help="The scenario to run (baseline is the current only option)."),
+    ],
+    incentives: Annotated[
+        IncentiveScenario,
+        typer.Argument(help="The incentive level to consider in the run."),
     ],
     year: Annotated[
         int,
@@ -114,6 +118,7 @@ def hpc(
         location=location,
         sector=sector,
         scenario=scenario,
+        incentive_scenario=incentives,
         year=year,
         env=env,
         n_nodes=nodes,
@@ -137,9 +142,15 @@ def hpc(
         utils.cleanup_chunks(dir_out, which="agents")
 
     if combine:
-        run_name = f"{location}_{sector}_{scenario}_{year}"
+        if incentives:
+            run_name = f"{location}_{sector}_{incentives}_{year}"
+        else:
+            run_name = f"{location}_{sector}_{scenario}_{year}"
         collect.combine_chunks(
-            dir_out=dir_out, file_name=run_name, remove_results_chunks=remove_results_chunks
+            sector=Sector(sector),
+            dir_out=dir_out,
+            file_name=run_name,
+            remove_results_chunks=remove_results_chunks,
         )
 
 
@@ -152,29 +163,29 @@ def interactive(
         Sector, typer.Argument(help="One of fom (front of meter) or btm (back-of-the-meter).")
     ],
     scenario: Annotated[Scenario, typer.Argument(help="The scenario to run, such as 'baseline'.")],
+    incentives: Annotated[
+        IncentiveScenario,
+        typer.Argument(help="The incentive level to consider in the run."),
+    ],
     year: Annotated[
         int, typer.Argument(callback=utils.year_callback, help="The year basis of the scenario.")
     ],
     dir_out: Annotated[str, typer.Argument(help="save path")],
-    repository: Annotated[
-        str, typer.Argument(help="Path to the dwind repository to use when running the model.")
-    ],
     model_config: Annotated[
         str, typer.Argument(help="Complete file name and path of the model configuration file")
-    ],
-    **kwargs: Annotated[
-        str, typer.Option(help="Do not pass arguments here, this is for internal overflow only.")
     ],
 ):
     """Run dwind locally, or via an interactive session where a SLURM job is not scheduled."""
     agents = utils.load_agents(
-        location=location, sector=sector, model_config=model_config, prepare=True
+        location=location, sector=sector.value, model_config=model_config, prepare=True
     )
+
     model = Model(
         agents=agents,
         location=location,
         sector=sector,
         scenario=scenario,
+        incentive_scenario=incentives,
         year=year,
         out_path=dir_out,
         model_config=model_config,
@@ -228,7 +239,6 @@ def config(
         config = tomllib.load(f)
     print("Running the following configuration:")
     pprint(config)
-
     if use_hpc:
         hpc(
             combine=combine,
@@ -250,6 +260,10 @@ def chunk(
         Sector, typer.Argument(help="One of fom (front of meter) or btm (back-of-the-meter).")
     ],
     scenario: Annotated[Scenario, typer.Argument(help="The scenario to run, such as baseline.")],
+    incentives: Annotated[
+        IncentiveScenario,
+        typer.Argument(help="The incentive level to consider in the run."),
+    ],
     year: Annotated[
         int, typer.Argument(callback=utils.year_callback, help="The year basis of the scenario.")
     ],
@@ -276,6 +290,7 @@ def chunk(
         location=location,
         sector=sector,
         scenario=scenario,
+        incentive_scenario=incentives,
         year=year,
         chunk_ix=chunk_ix,
         out_path=out_path,
