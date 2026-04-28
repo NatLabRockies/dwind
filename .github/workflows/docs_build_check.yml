@@ -8,7 +8,7 @@ on:
     - dev
 
 jobs:
-  deploy-docs:
+  test-docs-build:
     runs-on: ubuntu-latest
     permissions:
       pages: write
