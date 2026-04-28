@@ -16,6 +16,7 @@ requires-python = ">=3.11"
 license = {file = "LICENSE"}
 dependencies = [
     "nrel-rex",
+    "nrel-pysam>=7.1",
     "numpy",
     "pandas>=2",
     "sqlalchemy",
@@ -23,7 +24,7 @@ dependencies = [
     "scipy",
     "matplotlib",
     "seaborn",
-    "pyarrow==17",
+    "pyarrow",
     "fastparquet",
     "h5pyd",
     "typer",
