@@ -179,7 +179,7 @@ met the following steps should be taken to create a new release
 
    ```bash
    git tag -a v1.2.3 -m "v1.2.3 release"
-   git push --origin v1.2.3
+   git push origin v1.2.3
    ```
 
 7. Check that the
