@@ -1,7 +1,7 @@
 dwind.cli
 =========
 
-Please see the [CLI documentation](../cli) for more details on using the CLI. Below is a summary
+Please see the :ref:`CLI documentation <cli>` for more details on using the CLI. Below is a summary
 of the available functionality best accessed through the CLI.
 
 .. automodule:: dwind.cli
