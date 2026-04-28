@@ -9,6 +9,7 @@ import typer
 import pandas as pd
 
 from dwind.cli import utils
+from dwind.config import Sector
 
 
 app = typer.Typer()
@@ -26,6 +27,9 @@ def combine_chunks(
                 " passed to the run command."
             )
         ),
+    ],
+    sector: Annotated[
+        Sector, typer.Argument(help="One of fom (front of meter) or btm (back-of-the-meter).")
     ],
     file_name: Annotated[
         Optional[str],  # noqa
@@ -52,20 +56,66 @@ def combine_chunks(
     out_path = dir_out / "chunk_files"
     result_files = [f for f in out_path.iterdir() if f.suffix == (".pqt")]
 
-    if len(result_files) > 0:
-        file_name = "results" if file_name is None else file_name
-        result_agents = pd.concat([pd.read_parquet(f) for f in result_files])
-        f_out = dir_out / f"{file_name}.pqt"
-        result_agents.to_parquet(f_out)
-        print(f"Aggregated results saved to: {f_out}")
+    if len(result_files) == 0:
+        print(f"No chunked results found in: {out_path}.")
         return None
 
-        if remove_results_chunks:
-            for f in result_files:
-                f.unlink()
-                print(f"Removed: {f}")
+    file_name = "results" if file_name is None else file_name
+    result_agents = pd.concat([pd.read_parquet(f) for f in result_files])
+    load_df = pd.read_csv(
+        "/projects/dwind/data/parcel_landuse_load_application_mapping.csv",
+        usecols=["land_use", "application"],
+    )
+    result_agents.drop(columns="application").merge(load_df, on="land_use", how="left")
+    apps = ["BTM, FOM", "BTM, FOM, Utility"]
+    if sector is Sector.BTM:
+        apps.append("BTM")
+        drop_cols = ["index_x", "index_y"]
+        # result_agents = result_agents.drop(columns=["consumption_hourly", "deprec_sch"])
     else:
-        print(f"No chunked results found in: {out_path}.")
+        apps.extend(["FOM, Utility", "FOM"])
+        drop_cols = ["lcoe_real_usd_kwh", "system_variable_om_per_kw", "cap_cost_multiplier"]
+
+    result_agents = result_agents.loc[result_agents.application.isin(apps)]
+    result_agents.loc[
+        result_agents.state.eq("new_york"), ["state_abbr", "census_division_abbr"]
+    ] = ["NY", "MA"]
+    result_agents.loc[
+        result_agents.state.eq("north_dakota"), ["state_abbr", "census_division_abbr"]
+    ] = ["ND", "WNC"]
+    result_agents.loc[
+        result_agents.state.eq("south_dakota"), ["state_abbr", "census_division_abbr"]
+    ] = ["SD", "WNC"]
+    result_agents.loc[
+        result_agents.state.eq("new_mexico"), ["state_abbr", "census_division_abbr"]
+    ] = ["NM", "M"]
+    result_agents.loc[
+        result_agents.state.eq("new_hampshire"), ["state_abbr", "census_division_abbr"]
+    ] = ["NH", "NE"]
+    result_agents.loc[
+        result_agents.state.eq("rhode_island"), ["state_abbr", "census_division_abbr"]
+    ] = ["RI", "NE"]
+    result_agents.loc[
+        result_agents.state.eq("districtofcolumbia"), ["state_abbr", "census_division_abbr"]
+    ] = ["DC", "SA"]
+    result_agents.loc[
+        result_agents.state.eq("west_virginia"), ["state_abbr", "census_division_abbr"]
+    ] = ["WV", "SA"]
+    result_agents.loc[
+        result_agents.state.eq("north_carolina"), ["state_abbr", "census_division_abbr"]
+    ] = ["NC", "SA"]
+    result_agents.loc[
+        result_agents.state.eq("south_carolina"), ["state_abbr", "census_division_abbr"]
+    ] = ["SC", "SA"]
+
+    result_agents = result_agents.drop(columns=drop_cols)
+    f_out = dir_out / f"{file_name}.pqt"
+    result_agents.to_parquet(f_out)
+    print(f"Aggregated results saved to: {f_out}")
+    if remove_results_chunks:
+        for f in result_files:
+            f.unlink()
+            print(f"Removed: {f}")
 
 
 @app.command()

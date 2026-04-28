@@ -20,7 +20,15 @@ from scipy import optimize
 
 from dwind import scenarios
 from dwind.utils import loader
-from dwind.config import Year, Sector, Scenario, Technology, Optimization, Configuration
+from dwind.config import (
+    Year,
+    Sector,
+    Scenario,
+    Technology,
+    Optimization,
+    Configuration,
+    IncentiveScenario,
+)
 
 
 log = logging.getLogger("dwfs")
@@ -32,6 +40,7 @@ class ValueFunctions:
     def __init__(
         self,
         scenario: str | Scenario,
+        inc_scenario: str | IncentiveScenario,
         year: int | Year,
         configuration: Configuration,
         return_format: str = "totals",
@@ -40,6 +49,7 @@ class ValueFunctions:
 
         Args:
             scenario (str): Only option is "baseline" currently.
+            inc_scenario (str): Currently only accepts "standard" or "no_incentives" as inputs.
             year (int): Analysis year.
             configuration (dwind.config.Configuration): Model configuration with universal settings.
             return_format (str, optional): One of "profiles", "total_profile", "totals", or "total"
@@ -48,6 +58,7 @@ class ValueFunctions:
                 "totals".
         """
         self.scenario = Scenario(scenario)
+        self.inc_scenario = IncentiveScenario(inc_scenario)
         self.year = Year(year)
         self.config = configuration
         self.return_format = return_format
@@ -55,7 +66,9 @@ class ValueFunctions:
         self.CAMBIUM_SCENARIO = scenarios.config_cambium(self.scenario)
         self.COST_INPUTS = scenarios.config_costs(self.scenario, self.year)
         self.PERFORMANCE_INPUTS = scenarios.config_performance(self.scenario, self.year)
-        self.FINANCIAL_INPUTS = scenarios.config_financial(self.scenario, self.year)
+        self.FINANCIAL_INPUTS = scenarios.config_financial(
+            self.scenario, self.inc_scenario, self.year
+        )
 
         self.load()
 
@@ -92,12 +105,13 @@ class ValueFunctions:
         self.batt_price_inputs = _load_sql(self.config.cost.BATT_PRICE_INPUT_TABLE)
         self.batt_tech_inputs = _load_sql(self.config.cost.BATT_TECH_INPUT_TABLE)
 
-    def _process_btm_costs(self, cost_inputs: dict, tech: str) -> pd.DataFrame:
-        """Convert the BTM dictionary data into a dataframe.
+    def _process_costs(self, cost_inputs: dict, tech: str, sector: str) -> pd.DataFrame:
+        """Convert the costs dictionary data into a dataframe.
 
         Args:
-            cost_inputs (dict): The BTM portion of the ATB cost dictionary.
+            cost_inputs (dict): The ATB cost dictionary.
             tech (str): One of "wind" or "solar".
+            sector (str): One of "btm" or "fom".
 
         Returns:
             (pd.DataFrame): A reformatted data frame of the dictionary with either a
@@ -116,16 +130,16 @@ class ValueFunctions:
             opex.columns = ["sector_abbr", "system_om_per_kw"]
             costs = pd.merge(capex, opex, how="left", left_on="sector_abbr", right_on="sector_abbr")
         else:
-            capex.columns = ["wind_turbine_kw_btm", "system_capex_per_kw"]
-            opex.columns = ["wind_turbine_kw_btm", "system_om_per_kw"]
+            capex.columns = [f"wind_turbine_kw_{sector}", "system_capex_per_kw"]
+            opex.columns = [f"wind_turbine_kw_{sector}", "system_om_per_kw"]
             costs = pd.merge(
                 capex,
                 opex,
                 how="left",
-                left_on="wind_turbine_kw_btm",
-                right_on="wind_turbine_kw_btm",
+                left_on=f"wind_turbine_kw_{sector}",
+                right_on=f"wind_turbine_kw_{sector}",
             )
-            costs.wind_turbine_kw_btm = costs.wind_turbine_kw_btm.astype(float)
+            costs[f"wind_turbine_kw_{sector}"] = costs[f"wind_turbine_kw_{sector}"].astype(float)
 
         costs["cap_cost_multiplier"] = cost_inputs["cap_cost_multiplier"][tech]
         costs["system_variable_om_per_kw"] = cost_inputs["system_variable_om_per_kw"][tech]
@@ -144,7 +158,6 @@ class ValueFunctions:
         """
         tech = Technology(tech)
         df["county_id_int"] = df.county_id.astype(int)
-
         # Get the electricity rates
         df = pd.merge(
             df,
@@ -160,7 +173,7 @@ class ValueFunctions:
             left_on="county_id_int",
             right_on="county_id",
         )
-        df = df.drop(columns="county_id_int")
+        df = df.drop(columns=["county_id_int", "county_id_x", "county_id_y"])
 
         # Technology-specific factors
         if tech is Technology.SOLAR:
@@ -168,7 +181,7 @@ class ValueFunctions:
         elif tech is Technology.WIND:
             tech_join = "wind_turbine_kw_btm"
 
-        cost_df = self._process_btm_costs(self.COST_INPUTS["BTM"], tech.value)
+        cost_df = self._process_costs(self.COST_INPUTS, tech.value, "btm")
         df = pd.merge(
             df,
             cost_df,
@@ -176,6 +189,7 @@ class ValueFunctions:
             left_on=tech_join,
             right_on=tech_join,
         )
+
         if tech is Technology.SOLAR:
             df = pd.merge(
                 df,
@@ -199,8 +213,8 @@ class ValueFunctions:
                 left_on="wind_turbine_kw_btm",
                 right_on="turbine_size_kw",
             )
+            df = df.drop(columns=["turbine_size_kw_x", "turbine_size_kw_y"])
             df["system_degradation"] = 0  # wind degradation already accounted for
-
         # Financial factors
         # For 2025, the incentives JSON data are located in the itc_fraction_of_capex
         # field, and need to be removed, then rejoined with the appropriate column names
@@ -288,14 +302,29 @@ class ValueFunctions:
             term_tenor=self.FINANCIAL_INPUTS["FOM"]["system_lifetime"],
             itc_fed_pct=itc_fraction_of_capex if self.year != 2025 else 0.3,
             deg=self.FINANCIAL_INPUTS["FOM"]["degradation"],
-            system_capex_per_kw=self.COST_INPUTS["FOM"]["system_capex_per_kw"][tech.value],
-            system_om_per_kw=self.COST_INPUTS["FOM"]["system_om_per_kw"][tech.value],
             **{
                 f"ptc_fed_amt_{tech.value}": self.FINANCIAL_INPUTS["FOM"]["ptc_fed_dlrs_per_kwh"][
                     tech.value
                 ]
             },
         )
+
+        # Technology-specific factors
+        if tech is Technology.SOLAR:
+            tech_join = "sector_abbr"
+        elif tech is Technology.WIND:
+            tech_join = "wind_turbine_kw"
+
+        cost_df = self._process_costs(self.COST_INPUTS, tech.value, "fom")
+        cost_df = cost_df.rename(columns={"wind_turbine_kw_fom": "wind_turbine_kw"})
+        df = pd.merge(
+            df,
+            cost_df,
+            how="left",
+            left_on=tech_join,
+            right_on=tech_join,
+        )
+
         # 2025 uses census-tract based applicable credit for the itc_fed_pct, so update accordingly
         if self.year == 2025:
             incentives = self.FINANCIAL_INPUTS["FOM"]["itc_fraction_of_capex"]
@@ -326,7 +355,6 @@ class ValueFunctions:
 
         if max_w > 1:
             results_list = []
-            # with cf.ProcessPoolExecutor(max_workers=max_w, mp_context=multiprocessing.get_context("spawn")) as executor:  # noqa
             with cf.ProcessPoolExecutor(max_workers=max_w) as executor:
                 start = time.perf_counter()
                 checkpoint = max(1, int(len(agents) * verb))
@@ -357,12 +385,20 @@ class ValueFunctions:
 
         # create results df from workers
         results_df = pd.DataFrame.from_dict(
-            {k: v for d in results_list for k, v in d.items()}, orient="index"
+            {k: v for d in results_list if isinstance(d, dict) for k, v in d.items()},
+            orient="index",
         )
         results_df.index.name = "gid"
-
         # merge valuation results to agents dataframe
         agents = agents.merge(results_df, on="gid", how="left")
+        # lcoe correction
+        if sector is Sector.FOM:
+            mask = agents["wind_breakeven_cost_fom"] > 0
+            agents.loc[mask, "lcoe_real_usd_kwh"] = (
+                agents.loc[mask, "cost_prefinancing"] + agents.loc[mask, "npv_annual_costs"]
+            ) / agents.loc[mask, "npv_energy_real"]
+            agents.loc[mask, "lcoe_real"] = agents.loc[mask, "lcoe_real_usd_kwh"] * 100
+
         return agents
 
 
@@ -1035,15 +1071,12 @@ def process_btm(
 
     # instantiate PySAM battery model based on agent sector
     if row.loc["sector_abbr"] == "res":
-        batt = battery.default("GenericBatteryResidential")
+        batt = battery.default("CustomGenerationBatteryResidential")
     else:
-        batt = battery.default("GenericBatteryCommercial")
+        batt = battery.default("CustomGenerationBatteryCommercial")
 
     # instantiate PySAM utilityrate5 model based on agent sector
-    if row.loc["sector_abbr"] == "res":
-        utilityrate = ur5.default("GenericBatteryResidential")
-    else:
-        utilityrate = ur5.default("GenericBatteryCommercial")
+    utilityrate = ur5.from_existing(batt)
 
     ######################################
     ###--------- UTILITYRATE5 ---------###
@@ -1139,12 +1172,8 @@ def process_btm(
     # Initiate cashloan model and set market-specific variables
     # Assume res agents do not evaluate depreciation at all
     # Assume non-res agents only evaluate federal depreciation (not state)
-    if row.loc["sector_abbr"] == "res":
-        loan = cashloan.default("GenericBatteryResidential")
-        loan.FinancialParameters.market = 0
-    else:
-        loan = cashloan.default("GenericBatteryCommercial")
-        loan.FinancialParameters.market = 1
+    loan = cashloan.from_existing(batt)
+    loan.FinancialParameters.market = 0 if row.loc["sector_abbr"] == "res" else 1
 
     loan.FinancialParameters.analysis_period = row.loc["economic_lifetime_yrs"]
     loan.FinancialParameters.debt_fraction = 100 - (row.loc["down_payment_fraction"] * 100)
@@ -1203,7 +1232,7 @@ def process_btm(
     itc_fed_pct = row.loc["itc_fraction_of_capex"]
     itc_fed_pct = itc_fed_pct * 100
     if itc_fed_pct != 0:
-        loan.TaxCreditIncentives.itc_fed_percent = itc_fed_pct  # [itc_fed_pct]
+        loan.TaxCreditIncentives.itc_fed_percent = [itc_fed_pct]
 
     ######################################
     ###----------- CASHLOAN -----------###
@@ -1323,32 +1352,27 @@ def process_btm(
         batt.BatterySystem.en_batt = 0
         loan.BatterySystem.en_batt = 0
 
-        loan.Battery.batt_annual_charge_from_system = [0.0]
-        loan.Battery.batt_annual_discharge_energy = [0.0]
         loan.Battery.batt_capacity_percent = [0.0]
-        loan.Battery.battery_total_cost_lcos = 0.0
-        loan.Battery.grid_to_batt = [0.0]
-        loan.Battery.monthly_batt_to_grid = [0.0]
-        loan.Battery.monthly_grid_to_batt = [0.0]
-        loan.Battery.monthly_grid_to_load = [0.0]
-        loan.Battery.monthly_system_to_grid = [0.0]
+        loan.Battery.monthly_batt_to_grid = [0.0] * 12
+        loan.Battery.monthly_grid_to_batt = [0.0] * 12
+        loan.Battery.monthly_grid_to_load = [0.0] * 12
 
         # for PySAM 4.0
-        # loan.LCOS.batt_annual_charge_energy = [0.]
-        # loan.LCOS.batt_annual_charge_from_system = [0.]
-        # loan.LCOS.batt_annual_discharge_energy = [0.]
-        # loan.LCOS.batt_capacity_percent = [0.]
-        # loan.LCOS.battery_total_cost_lcos = 0.
-        # loan.LCOS.charge_w_sys_ec_ym = [[0.]]
-        # loan.LCOS.grid_to_batt = [0.]
-        # loan.LCOS.monthly_batt_to_grid = [0.]
-        # loan.LCOS.monthly_grid_to_batt = [0.]
-        # loan.LCOS.monthly_grid_to_load = [0.]
-        # loan.LCOS.monthly_system_to_grid = [0.]
-        # loan.LCOS.true_up_credits_ym = [[0.]]
-        # loan.LCOS.year1_monthly_ec_charge_gross_with_system = [0.]
-        # loan.LCOS.year1_monthly_ec_charge_with_system = [0.]
-        # loan.LCOS.year1_monthly_electricity_to_grid = [0.]
+        loan.LCOS.batt_annual_charge_energy = [0.0]
+        loan.LCOS.batt_annual_charge_from_system = [0.0]
+        loan.LCOS.batt_annual_discharge_energy = [0.0]
+        loan.LCOS.batt_capacity_percent = [0.0]
+        loan.LCOS.battery_total_cost_lcos = 0.0
+        loan.LCOS.charge_w_sys_ec_ym = [[0.0]]
+        loan.LCOS.grid_to_batt = [0.0]
+        loan.LCOS.monthly_batt_to_grid = [0.0] * 12
+        loan.LCOS.monthly_grid_to_batt = [0.0] * 12
+        loan.LCOS.monthly_grid_to_load = [0.0] * 12
+        loan.LCOS.monthly_system_to_grid = [0.0] * 12
+        loan.LCOS.true_up_credits_ym = [[0.0]]
+        loan.LCOS.year1_monthly_ec_charge_gross_with_system = [0.0] * 12
+        loan.LCOS.year1_monthly_ec_charge_with_system = [0.0] * 12
+        loan.LCOS.year1_monthly_electricity_to_grid = [0.0] * 12
 
         # specify number of O&M types (0 = PV only)
         loan.SystemCosts.add_om_num_types = 0
@@ -1388,8 +1412,6 @@ def process_btm(
 
     loan.SystemOutput.annual_energy_value = annual_energy_value
     loan.SystemOutput.gen = utilityrate.SystemOutput.gen
-    loan.ThirdPartyOwnership.elec_cost_with_system = utilityrate.Outputs.elec_cost_with_system
-    loan.ThirdPartyOwnership.elec_cost_without_system = utilityrate.Outputs.elec_cost_without_system
 
     _ = calc_financial_performance(row["system_capex_per_kw"], row, loan, batt_costs)
 
@@ -1504,7 +1526,7 @@ def process_fom(
 
         itc_fed_pct = itc_fed_pct * 100
         if itc_fed_pct != 0:
-            financial.TaxCreditIncentives.itc_fed_percent = itc_fed_pct  # [itc_fed_pct]
+            financial.TaxCreditIncentives.itc_fed_percent = [itc_fed_pct]
 
         financial.Depreciation.depr_custom_schedule = [0]
 
@@ -1525,6 +1547,7 @@ def process_fom(
 
         financial.Revenue.mp_enable_energy_market_revenue = 1
         financial.Revenue.mp_energy_market_revenue = market_profile
+        financial.Revenue.mp_enable_market_percent_gen = 0
         financial.Revenue.mp_enable_ancserv1 = 0
         financial.Revenue.mp_enable_ancserv2 = 0
         financial.Revenue.mp_enable_ancserv3 = 0
@@ -1550,12 +1573,10 @@ def process_fom(
 
         financial.SystemCosts.om_capacity = [system_om_per_kw]
 
-        log.info(f"row {row.loc['gid']} calculating financial performance")
         _ = calc_financial_performance_fom(system_capex_per_kw, row, financial)
         row["additional_pysam_outputs"] = {k: getattr(financial.Outputs, k) for k in pysam_outputs}
 
         # run root finding algorithm to find breakeven cost based on calculated NPV
-        log.info(f"row {row.loc['gid']} breakeven")
         out, _ = find_breakeven_fom(
             row=row,
             financial=financial,
@@ -1563,7 +1584,6 @@ def process_fom(
             pre_calc_bounds_and_tolerances=False,
             **{"method": "newton", "x0": 10000.0, "full_output": True},
         )
-
         row["breakeven_cost_usd_p_kw"] = out
 
     return row

@@ -1,13 +1,14 @@
 name: deploy-docs
 
-# Run this when the master or main branch changes
+# Run this when the main or dev branches change to ensure docs build compliance
 on:
-  push:
+  pull_request:
     branches:
     - main
+    - dev
 
 jobs:
-  deploy-docs:
+  test-docs-build:
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -28,14 +29,3 @@ jobs:
     - name: Build the book
       run: |
         jupyter-book build docs/
-
-    # Upload the book's HTML as an artifact
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: "docs/_build/html"
-
-    # Deploy the book's HTML to GitHub Pages
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4

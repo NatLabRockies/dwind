@@ -1,6 +1,6 @@
-"""Provides the :py:class:`MultiProcess` class for running a model on `NREL's Kestrel HPC system`_.
+"""Provides the :py:class:`MultiProcess` class for running a model on `NLR's Kestrel HPC system`_.
 
-.. NREL's Kestrel HPC system: https://nrel.github.io/HPC/Documentation/Systems/Kestrel/
+.. NLR's Kestrel HPC system: https://natlabrockies.github.io/HPC/Documentation/Systems/Kestrel/
 """
 
 from __future__ import annotations
@@ -57,6 +57,7 @@ class MultiProcess:
         location: str,
         sector: str,
         scenario: str,
+        incentive_scenario: str,
         year: int,
         env: str | Path,
         n_nodes: int,
@@ -109,6 +110,7 @@ class MultiProcess:
         self.location = location
         self.sector = sector
         self.scenario = scenario
+        self.incentive_scenario = incentive_scenario
         self.year = year
         self.env = env
         self.n_nodes = n_nodes
@@ -182,6 +184,7 @@ class MultiProcess:
         base_args = f" {self.location}"
         base_args += f" {self.sector}"
         base_args += f" {self.scenario}"
+        base_args += f" {self.incentive_scenario}"
         base_args += f" {self.year}"
         base_args += f" {self.out_path}"
         base_args += f" {self.repository}"

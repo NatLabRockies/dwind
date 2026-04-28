@@ -1,5 +1,6 @@
 # Book settings
-# Learn more at https://jupyterbook.org/customize/config.html
+# Learn more at https://jupyterbook.org/v1/customize/config.html
+# Generally, check v1 of the Jupyter Book docs for more details: https://jupyterbook.org/v1/intro.html
 
 title: dwind
 author: Rob Hammond
@@ -7,39 +8,32 @@ author: Rob Hammond
 copyright: "2025"
 only_build_toc_files: false
 
-# Force re-execution of notebooks on each build.
-# See https://jupyterbook.org/content/execute.html
 execute:
   execute_notebooks: auto
-  timeout: -1  # better for longer running notebooks
-  merge_streams: true  # keeps unsynchronized cell outputs in a single output cell
+  timeout: -1
+  merge_streams: true
   exclude_patterns:
     - _build
     - Thumbs.db
     - DS_Store
     - "**.ipynb_checkpoints"
 
-# Define the name of the latex output file for PDF builds
 latex:
   latex_documents:
     targetname: book.tex
 
-# Add a bibtex file so that we can create citations
 bibliography:
   - references.bib
 
-# Information about where the book exists on the web
 repository:
-  url: https://github.com/NREL/dwind
+  url: https://github.com/NatlLabRockies/dwind
   path_to_book: docs
   branch: main
 
-# Add GitHub buttons to your book
-# See https://jupyterbook.org/customize/config.html#add-a-link-to-your-repository
 html:
   use_issues_button: true
   use_repository_button: true
-  baseurl: https://nrel.github.io/dwind/
+  baseurl: https://natlabrockies.github.io/dwind/
 
 sphinx:
   extra_extensions:

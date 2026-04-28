@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from dwind import resource, scenarios, valuation, btm_sizing
-from dwind.config import Year, Sector, CRBModel, Scenario, Configuration
+from dwind.config import Year, Sector, CRBModel, Scenario, Configuration, IncentiveScenario
 
 
 # POTENTIALLY DANGEROUS!
@@ -248,6 +248,7 @@ class Model:
         year: int,
         out_path: str | Path,
         model_config: str | Path,
+        incentive_scenario: str = "standard",
         chunk_ix: int | None = None,
     ):
         """Initializes a :py:class:`Model` instance.
@@ -258,6 +259,8 @@ class Model:
             location (str): Priority class or "<state>_<county>" string.
             sector (str): One of "fom" (front-of-meter) or "btm" (behind-the-meter).
             scenario (str): Currently only accepts "baseline" as an input.
+            incentive_scenario (str): Currently only accepts "standard" or "no_incentives" as
+                inputs.
             year (int): One of 2022, 2025, 2035, or 2040 for the analysis year.
             out_path (str | Path): Path for where to save any logging or output data.
             model_config (str | Path): The overarching model configuration TOML file containing
@@ -277,6 +280,7 @@ class Model:
         self.location = location
         self.sector = Sector(sector)
         self.scenario = Scenario(scenario)
+        self.inc_scenario = IncentiveScenario(incentive_scenario)
         self.year = Year(year)
         self.config = Configuration(model_config)
 
@@ -294,10 +298,13 @@ class Model:
         self.agents = self.agents[self.agents["application"].isin(apps)]
 
     def _init_logging(self):
-        """Initializing the logging to :py:attr:`out_path` / logs / dwfs.txt."""
+        """Initialize the logging to :py:attr:`out_path` "/logs/dwfs.txt"."""
         log_dir = self.out_path / "logs"
-        if not log_dir.exists():
-            log_dir.mkdir()
+        log_dir.mkdir(exist_ok=True)
+
+        # Clear existing root handlers
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
 
         logging.basicConfig(
             level=logging.INFO,
@@ -308,7 +315,8 @@ class Model:
             ],
         )
 
-        self.log = logging.getLogger("dwfs")
+        self.log = logging.getLogger("dwind")
+        self.log.setLevel(logging.DEBUG)
 
     def _get_rates(self):
         """Retrieves the tariff rates and merges them based on the "rate_id_alias" column."""
@@ -479,7 +487,7 @@ class Model:
 
     def run_valuation(self):
         """Runs the valuation model to create the PySAM financial results."""
-        valuer = valuation.ValueFunctions(self.scenario, self.year, self.config)
+        valuer = valuation.ValueFunctions(self.scenario, self.inc_scenario, self.year, self.config)
 
         if self.sector is Sector.BTM:
             self.agents["application"] = "BTM"
@@ -489,7 +497,6 @@ class Model:
                 self.log.info(f"starting valuation for {len(self.agents)} BTM agents")
 
                 self.agents = valuer.run(agents=self.agents, sector=self.sector)
-
                 self.log.info("null counts:")
                 self.log.info(self.agents.isnull().sum().sort_values())
 
@@ -534,5 +541,6 @@ class Model:
 
     def run(self):
         """Runs the whole model."""
+        self.log.info(f"running dwind model for {self.run_name}")
         self.prepare_agents()
         self.run_valuation()

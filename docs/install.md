@@ -1,3 +1,4 @@
+(install)=
 # Installing dwind
 
 ## Install dwind via PyPI
@@ -12,12 +13,12 @@ pip install dwind
 
 If you want to develop new models or contribute to dwind, you can install it from source.
 
-### NREL-provided conda environment specification (recommended)
+### NLR-provided conda environment specification (recommended)
 
 1. Using Git, navigate to a local target directory and clone repository:
 
     ```bash
-    git clone https://github.com/NREL/dwind.git
+    git clone https://github.com/NatlLabRockies/dwind.git
     ```
 
 2. Navigate to `dwind`
@@ -49,7 +50,7 @@ pip install -e ".[dev]"
 1. Using Git, navigate to a local target directory and clone repository:
 
     ```bash
-    git clone https://github.com/NREL/dwind.git
+    git clone https://github.com/NatlLabRockies/dwind.git
     ```
 
 2. Navigate to `dwind`
@@ -81,44 +82,7 @@ pip install -e ".[dev]"
        pre-commit install
        ```
 
-## Developer Notes
+## Developer Installation
 
-Developers should add install using `pip install -e ".[dev]"` to ensure documentation testing, and
-linting can be done without any additional installation steps.
-
-Please be sure to also install the pre-commit hooks if contributing code back to the main
-repository via the following. This enables a series of automated formatting and code linting
-(style and correctness checking) to ensure the code is stylistically consistent.
-
-```bash
-pre-commit install
-```
-
-If a check (or multiple) fails (commit is blocked), and reformatting was done, then restage
-(`git add`) your files and commit them again to see if all issues were resolved without user
-intervention. If changes are required follow the suggested fix, or resolve the stated
-issue(s). Restaging and committing may take multiple attempts steps if errors are unaddressed
-or insufficiently addressed. Please see [pre-commit](https://pre-commit.com/),
-[ruff](https://docs.astral.sh/ruff/), or [isort](https://pycqa.github.io/isort/) for more
-information.
-
-### Generating the documentation site
-
-Once the `dev` extras are installed, and your dwind environment is activated, the documentation can
-be built using the following two procedures.
-
-1. Update the CLI documentation.
-
-```bash
-typer dwind.main utils docs --output docs/reference/cli.md --name dwind
-```
-
-2. Build the documentation site to inspect any and all changes.
-
-```bash
-jupyter-book build docs/
-```
-
-For more information on the build process in Jupyter Book, please check:
-https://jupyterbook.org/en/stable/start/build.html. For more general details, please visit
-https://jupyterbook.org/en/stable/intro.html.
+Please see the [Contributor's Guide](#contributor-guide) for notes on installation steps and general
+notes geared towards maintainers and contributors of the project.

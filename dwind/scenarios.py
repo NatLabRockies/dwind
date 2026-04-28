@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from dwind.config import Year, Scenario
+from dwind.config import Year, Scenario, IncentiveScenario
 
 
 def config_nem(scenario: Scenario, year: Year) -> str:
@@ -42,7 +42,7 @@ def config_cambium(scenario: Scenario) -> str:
     if scenario is Scenario.LOWRECOST:
         return "StdScen20_LowRECost"
 
-    return "Cambium23_MidCase"
+    return "Cambium24_MidCase"
 
 
 def config_costs(scenario: Scenario, year: Year) -> dict:
@@ -140,11 +140,13 @@ def config_performance(scenario: Scenario, year: Year) -> pd.DataFrame:
     return performance_inputs
 
 
-def config_financial(scenario: Scenario, year: Year) -> dict:
+def config_financial(scenario: Scenario, inc_scenario: IncentiveScenario, year: Year) -> dict:
     """Loads the financial configuration based on the ATB analysis.
 
     Args:
         scenario (:py:class:`dwind.config.Scenario`): Valid :py:class:`dwind.config.Scenario`.
+        inc_scenario (:py:class:`dwind.config.IncentiveScenario`): Valid
+            :py:class:`dwind.config.IncentiveScenario`.
         year (:py:class:`dwind.config.Year`): Valid :py:class:`dwind.config.Year`.
 
     Returns:
@@ -166,13 +168,19 @@ def config_financial(scenario: Scenario, year: Year) -> dict:
 
     # TODO: determine if shared settings is applicable going forward, or separate should be reserved
     if year == 2025:
+        if inc_scenario is IncentiveScenario.NOINCENTIVES:
+            incentives["applicable_credit"] = 0.0
         financials["BTM"]["itc_fraction_of_capex"] = incentives
         financials["FOM"]["itc_fraction_of_capex"] = incentives
         financials["FOM"]["ptc_fed_dlrs_per_kwh"]["solar"] = 0.0
         financials["FOM"]["ptc_fed_dlrs_per_kwh"]["wind"] = 0.0
     else:
-        financials["BTM"]["itc_fraction_of_capex"] = 0.3
-        financials["FOM"]["itc_fraction_of_capex"] = 0.3
+        if inc_scenario is IncentiveScenario.NOINCENTIVES:
+            financials["BTM"]["itc_fraction_of_capex"] = 0.0
+            financials["FOM"]["itc_fraction_of_capex"] = 0.0
+        else:
+            financials["BTM"]["itc_fraction_of_capex"] = 0.3
+            financials["FOM"]["itc_fraction_of_capex"] = 0.3
         financials["FOM"]["ptc_fed_dlrs_per_kwh"]["solar"] = 0.0
         financials["FOM"]["ptc_fed_dlrs_per_kwh"]["wind"] = 0.0
 
