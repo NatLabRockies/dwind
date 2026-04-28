@@ -95,6 +95,16 @@ please also read the [release guide](#release-process).
 * The dwind copyright policy is detailed in the [`LICENSE`](https://github.com/NatLabRockies/dwind/blob/main/LICENSE).
 * Build the docs locally, check that the build everything is in good order, and links work.
 
+### Merging Pull Requests
+
+Assuming the PR has been successfully reviewed, please read on.
+
+For any development branch (e.g., `feature/my-contribution` -> `dev` or `fix/important-bug` -> `main`), always use the
+"squash and merge" method for merging PRs (use merge button's drop down menu).
+
+For the standard release process (i.e., `dev` -> `main`), always use the standard merge process (create a merge commit
+in the merge button's drop down menu).
+
 ## Documentation
 
 When contributing new features or fixing existing capabilities, be sure to add and/or update the
