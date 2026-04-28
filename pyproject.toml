@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "dwind"
 dynamic = ["version"]
 authors = [
-    {name = "Jane Lockshin", email = "jane.lockshin@nrel.gov"},
-    {name = "Paritosh Das", email = "paritosh.das@nrel.gov"},
-    {name = "Rob Hammond", email = "rob.hammond@nrel.gov"},
+    {name = "Jane Lockshin", email = "jane.lockshin@nlr.gov"},
+    {name = "Paritosh Das", email = "paritosh.das@nlr.gov"},
+    {name = "Rob Hammond", email = "rob.hammond@nlr.gov"},
 ]
 readme = "README.md"
 description = "Distributed Wind Generation Model"
@@ -57,10 +57,10 @@ classifiers = [
 dwind = "dwind.main:app"
 
 [project.urls]
-source = "https://github.com/NREL/dwind"
-issues = "https://github.com/NREL/dwind/issues"
-documentation = "https://nrel.github.io/dwind/"
-changelog = "https://github.com/NREL/dwind/blob/main/CHANGELOG.md"
+source = "https://github.com/NatlLabRockies/dwind"
+issues = "https://github.com/NatlLabRockies/dwind/issues"
+documentation = "https://natlabrockies.github.io/dwind/"
+changelog = "https://github.com/NatlLabRockies/dwind/blob/main/CHANGELOG.md"
 
 # TODO
 [project.optional-dependencies]
@@ -70,8 +70,9 @@ dev = [
     "ruff",
     "pytest",
     "pytest-cov",
-    "jupyter-book",
+    "jupyter-book<2",
     "sphinx-autodoc-typehints",
+    "sphinxcontrib-bibtex",
 ]
 
 [tool.setuptools]

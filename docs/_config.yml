@@ -30,7 +30,7 @@ bibliography:
 
 # Information about where the book exists on the web
 repository:
-  url: https://github.com/NREL/dwind
+  url: https://github.com/NatlLabRockies/dwind
   path_to_book: docs
   branch: main
 
@@ -39,7 +39,7 @@ repository:
 html:
   use_issues_button: true
   use_repository_button: true
-  baseurl: https://nrel.github.io/dwind/
+  baseurl: https://natlabrockies.github.io/dwind/
 
 sphinx:
   extra_extensions:

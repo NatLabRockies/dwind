@@ -12,12 +12,12 @@ pip install dwind
 
 If you want to develop new models or contribute to dwind, you can install it from source.
 
-### NREL-provided conda environment specification (recommended)
+### NLR-provided conda environment specification (recommended)
 
 1. Using Git, navigate to a local target directory and clone repository:
 
     ```bash
-    git clone https://github.com/NREL/dwind.git
+    git clone https://github.com/NatlLabRockies/dwind.git
     ```
 
 2. Navigate to `dwind`
@@ -49,7 +49,7 @@ pip install -e ".[dev]"
 1. Using Git, navigate to a local target directory and clone repository:
 
     ```bash
-    git clone https://github.com/NREL/dwind.git
+    git clone https://github.com/NatlLabRockies/dwind.git
     ```
 
 2. Navigate to `dwind`

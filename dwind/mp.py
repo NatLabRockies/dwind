@@ -1,6 +1,6 @@
-"""Provides the :py:class:`MultiProcess` class for running a model on `NREL's Kestrel HPC system`_.
+"""Provides the :py:class:`MultiProcess` class for running a model on `NLR's Kestrel HPC system`_.
 
-.. NREL's Kestrel HPC system: https://nrel.github.io/HPC/Documentation/Systems/Kestrel/
+.. NLR's Kestrel HPC system: https://natlabrockies.github.io/HPC/Documentation/Systems/Kestrel/
 """
 
 from __future__ import annotations

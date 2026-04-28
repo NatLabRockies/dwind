@@ -2,14 +2,14 @@
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 ![PyPI - Version](https://img.shields.io/pypi/v/dwind)
-[![Jupyter Book](https://jupyterbook.org/badge.svg)](https://nrel.github.io/dwind)
+[![Jupyter Book](https://jupyterbook.org/badge.svg)](https://natlabrockies.github.io/dwind)
 
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 [![isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 
-Please note that at this time the model can only be run on NREL's Kestrel HPC system. Though a
+Please note that at this time the model can only be run on NatlLabRockies's Kestrel HPC system. Though a
 savvy user could recreate our data in their own computing environment and update the
 internal pointers in the example configuration at `examples/larimer_county_btm_baseline_2025.toml`
 and `examples/model_config.toml`.
@@ -20,7 +20,7 @@ and `examples/model_config.toml`.
 2. Clone the repository
 
    ```bash
-   git clone https://github.com/NREL/dwind.git
+   git clone https://github.com/NatlLabRockies/dwind.git
    ```
 
 3. Navigate to the dwind repository.
@@ -68,7 +68,7 @@ model configuration described above.
 
 `dwind` has a robust CLI interface allowing for the usage of `python path/to/dwind/dwind/main.py` or
 by directly calling`dwind`. For more details on using the CLI, use the `--help` flag, or visit our
-CLI documentation page https://nrel.github.io/dwind/cli.html
+CLI documentation page https://natlabrockies.github.io/dwind/cli.html
 
 To run the model, it is recommended to use the following workflow from your analysis folder.
 
