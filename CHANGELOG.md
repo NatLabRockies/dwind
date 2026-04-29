@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.1 - 28 April 2026
+
+- Fixes a typo in the new GitHub repository's name.
+
 ## v0.4 - 28 April 2026
 
 - Code updated to be compatible with PySAM 7.1+ releases.

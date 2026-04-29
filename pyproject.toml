@@ -57,10 +57,10 @@ classifiers = [
 dwind = "dwind.main:app"
 
 [project.urls]
-source = "https://github.com/NatlLabRockies/dwind"
-issues = "https://github.com/NatlLabRockies/dwind/issues"
+source = "https://github.com/NatLabRockies/dwind"
+issues = "https://github.com/NatLabRockies/dwind/issues"
 documentation = "https://natlabrockies.github.io/dwind/"
-changelog = "https://github.com/NatlLabRockies/dwind/blob/main/CHANGELOG.md"
+changelog = "https://github.com/NatLabRockies/dwind/blob/main/CHANGELOG.md"
 
 # TODO
 [project.optional-dependencies]

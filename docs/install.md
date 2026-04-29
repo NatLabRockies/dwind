@@ -18,7 +18,7 @@ If you want to develop new models or contribute to dwind, you can install it fro
 1. Using Git, navigate to a local target directory and clone repository:
 
     ```bash
-    git clone https://github.com/NatlLabRockies/dwind.git
+    git clone https://github.com/NatLabRockies/dwind.git
     ```
 
 2. Navigate to `dwind`
@@ -50,7 +50,7 @@ pip install -e ".[dev]"
 1. Using Git, navigate to a local target directory and clone repository:
 
     ```bash
-    git clone https://github.com/NatlLabRockies/dwind.git
+    git clone https://github.com/NatLabRockies/dwind.git
     ```
 
 2. Navigate to `dwind`
