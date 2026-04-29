@@ -8,7 +8,7 @@
 [![isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-Please note that at this time the model can only be run on NatlLabRockies's Kestrel HPC system.
+Please note that at this time the model can only be run on NatLabRockies's Kestrel HPC system.
 Though a savvy user could recreate our data in their own computing environment and update the
 internal pointers in the example configuration at `examples/larimer_county_btm_baseline_2025.toml`
 and `examples/model_config.toml`.
@@ -19,7 +19,7 @@ and `examples/model_config.toml`.
 2. Clone the repository
 
    ```bash
-   git clone https://github.com/NatlLabRockies/dwind.git
+   git clone https://github.com/NatLabRockies/dwind.git
    ```
 
 3. Navigate to the dwind repository.
