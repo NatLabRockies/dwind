@@ -71,6 +71,6 @@ Replace the below example with any added or modified files, and briefly describe
 
 <!--Fill out at least the versions listed below and those of any packages that may be related.-->
 Python version: 3.x
-WOMBAT version (`wombat.__version__`): 0.x
+dwind version (`dwind.__version__`): 0.x
 
 <!--Add any other context about the problem here.-->
