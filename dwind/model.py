@@ -405,7 +405,7 @@ class Model:
             nem_scenario_csv = scenarios.config_nem(self.scenario, self.year)
             nem_df = (
                 pd.read_csv(
-                    self.config.project.DIR / f"data/nem/{nem_scenario_csv}",
+                    f"{self.config.misc.NEM_DIR}/{nem_scenario_csv}",
                     dtype_backend="pyarrow",
                 )
                 .rename(columns={"max_pv_kw_limit": "nem_system_kw_limit"})

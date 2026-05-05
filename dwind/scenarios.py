@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from dwind.config import Year, Scenario, IncentiveScenario
+from dwind.config import Year, Scenario, IncentiveScenario, Configuration
 
 
 def config_nem(scenario: Scenario, year: Year) -> str:
@@ -45,7 +45,7 @@ def config_cambium(scenario: Scenario) -> str:
     return "Cambium24_MidCase"
 
 
-def config_costs(scenario: Scenario, year: Year) -> dict:
+def config_costs(scenario: Scenario, year: Year, config: Configuration) -> dict:
     """Loads the cost configuration based on the ATB analysis.
 
     Args:
@@ -56,7 +56,7 @@ def config_costs(scenario: Scenario, year: Year) -> dict:
         dict: Dictionary of ATB assumptions to be used for PySAM's cost inputs.
     """
     f = Path(
-        f"{self.config.cost.DIR}/ATB24_costs_{scenario.value}_{year.value}.json"
+        f"{config.cost.DIR}/ATB24_costs_{scenario.value}_{year.value}.json"
     ).resolve()
     with f.open("r") as f_in:
         cost_inputs = json.load(f_in)
@@ -140,7 +140,7 @@ def config_performance(scenario: Scenario, year: Year) -> pd.DataFrame:
     return performance_inputs
 
 
-def config_financial(scenario: Scenario, inc_scenario: IncentiveScenario, year: Year) -> dict:
+def config_financial(scenario: Scenario, inc_scenario: IncentiveScenario, year: Year, config: Configuration) -> dict:
     """Loads the financial configuration based on the ATB analysis.
 
     Args:
@@ -153,14 +153,14 @@ def config_financial(scenario: Scenario, inc_scenario: IncentiveScenario, year: 
         dict: Dictionary of ATB assumptions to be used for configuration PySAM.
     """
     if year is Year._2025:
-        f = f"{self.config.cost.DIR}/ATB24_financing_baseline_{year}.json"
-        i = Path(f"{self.config.incentives.DIR}/{self.config.incentives.TABLE}").resolve()
+        f = f"{config.cost.DIR}/ATB24_financing_baseline_{year}.json"
+        i = Path(f"{config.incentives.DIR}/{config.incentives.TABLE}").resolve()
         incentives = pd.read_parquet(i, dtype_backend="pyarrow")
     elif year in (Year._2035, Year._2040):
-        f = f"{self.config.cost.DIR}/ATB24_financing_baseline_2035.json"
+        f = f"{config.cost.DIR}/ATB24_financing_baseline_2035.json"
     else:
         # use old assumptions
-        f = f"{self.config.cost.OLD_DIR}/ATB20_financing_baseline_2035.json"
+        f = f"{config.cost.OLD_DIR}/ATB20_financing_baseline_2035.json"
     f = Path(f).resolve()
 
     with f.open("r") as f_in:

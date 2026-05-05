@@ -58,6 +58,7 @@ TABLE = "2025_incentives.pqt"
 
 [misc]
 NERC_LOOKUP = "/glade/work/calebp/dwind_data/county_nerc_join.csv"
+NEM_DIR = "/glade/work/calebp/dwind_data/nem"
 
 [rev]
 DIR = "/glade/work/calebp/dwind_data/rev/"
@@ -119,12 +120,11 @@ PASSWORD_PG = "password"
 USER_SAGE = "user"
 PASSWORD_SAGE = "password"
 
-PARCELS_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@1lv11gispg02.nrel.gov:5432/parcels"
-ATLAS_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@plv11dnpg01.nrel.gov:5432/dgen_db_fy17q3_dwind"
-LIGHTBOX_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@gds_publish.nrel.gov:5432/ref_lightbox"
-MS_BG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@gds_publish.nrel.gov:5432/ref_microsoft"
-SAGE_PG_CON_STR = "postgresql://{USER_SAGE}:{PASSWORD_SAGE}@sage.hpc.nrel.gov:5432/dgensfs"
-
+#PARCELS_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@1lv11gispg02.nrel.gov:5432/parcels"
+#ATLAS_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@plv11dnpg01.nrel.gov:5432/dgen_db_fy17q3_dwind"
+#LIGHTBOX_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@gds_publish.nrel.gov:5432/ref_lightbox"
+#MS_BG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@gds_publish.nrel.gov:5432/ref_microsoft"
+#SAGE_PG_CON_STR = "postgresql://{USER_SAGE}:{PASSWORD_SAGE}@sage.hpc.nrel.gov:5432/dgensfs"
 
 GENERATOR_LOOKUP_TABLE = "diffusion_resource_wind.dwfs_parcel_resource_lkup_test"
 

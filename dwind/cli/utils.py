@@ -10,7 +10,7 @@ from rich.style import Style
 from rich.table import Table
 from rich.console import Console
 
-from dwind.config import Year
+from dwind.config import Year, Configuration
 
 console = Console()
 
@@ -71,8 +71,9 @@ def load_agents(
     if file_name is None and (location is None or sector is None):
         raise ValueError("One of `file_name` or `location` and `sector` must be provided.")
 
+    config = Configuration(model_config)
     f_agents = (
-        file_name if file_name is not None else model_config.project.DIR / f"{location}/agents_dwind_{sector}.parquet"
+        file_name if file_name is not None else config.project.DATA_DIR / f"{location}/agents_dwind_{sector}.parquet"
     )
     if not isinstance(f_agents, Path):
         f_agents = Path(f_agents).resolve()

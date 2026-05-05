@@ -64,10 +64,10 @@ class ValueFunctions:
         self.return_format = return_format
 
         self.CAMBIUM_SCENARIO = scenarios.config_cambium(self.scenario)
-        self.COST_INPUTS = scenarios.config_costs(self.scenario, self.year)
+        self.COST_INPUTS = scenarios.config_costs(self.scenario, self.year, self.config)
         self.PERFORMANCE_INPUTS = scenarios.config_performance(self.scenario, self.year)
         self.FINANCIAL_INPUTS = scenarios.config_financial(
-            self.scenario, self.inc_scenario, self.year
+            self.scenario, self.inc_scenario, self.year, self.config
         )
 
         self.load()
@@ -75,11 +75,11 @@ class ValueFunctions:
     def load(self):
         """Loads all the core data from CSV and SQL for configuring PySAM."""
         _load_csv = functools.partial(loader.load_df, year=self.year)
-        _load_sql = functools.partial(
-            loader.load_df,
-            year=self.year,
-            sql_constructor=self.config.sql.ATLAS_PG_CON_STR,
-        )
+        #_load_sql = functools.partial(
+        #    loader.load_df,
+        #    year=self.year,
+        #    sql_constructor=self.config.sql.ATLAS_PG_CON_STR,
+        #)
         cost_dir = self.config.cost.DIR
 
         self.retail_rate_inputs = _load_csv(cost_dir / self.config.cost.RETAIL_RATE_INPUT_TABLE)
@@ -92,8 +92,8 @@ class ValueFunctions:
 
         if "wind" in self.config.project.settings.TECHS:
             self.wind_price_inputs = _load_csv(cost_dir / self.config.cost.WIND_PRICE_INPUT_TABLE)
-            self.wind_tech_inputs = _load_sql(self.config.cost.WIND_TECH_INPUT_TABLE)
-            self.wind_derate_inputs = _load_sql(self.config.cost.WIND_DERATE_INPUT_TABLE)
+            #self.wind_tech_inputs = _load_sql(self.config.cost.WIND_TECH_INPUT_TABLE)
+            #self.wind_derate_inputs = _load_sql(self.config.cost.WIND_DERATE_INPUT_TABLE)
 
         if "solar" in self.config.project.settings.TECHS:
             self.pv_price_inputs = _load_sql(self.config.cost.PV_PRICE_INPUT_TABLE)
@@ -102,8 +102,8 @@ class ValueFunctions:
                 self.config.cost.PV_PLUS_BATT_PRICE_INPUT_TABLE
             )
 
-        self.batt_price_inputs = _load_sql(self.config.cost.BATT_PRICE_INPUT_TABLE)
-        self.batt_tech_inputs = _load_sql(self.config.cost.BATT_TECH_INPUT_TABLE)
+        #self.batt_price_inputs = _load_sql(self.config.cost.BATT_PRICE_INPUT_TABLE)
+        #self.batt_tech_inputs = _load_sql(self.config.cost.BATT_TECH_INPUT_TABLE)
 
     def _process_costs(self, cost_inputs: dict, tech: str, sector: str) -> pd.DataFrame:
         """Convert the costs dictionary data into a dataframe.
