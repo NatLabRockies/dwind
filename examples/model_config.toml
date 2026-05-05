@@ -1,6 +1,6 @@
 [project]
-DIR = "/projects/dwind/"
-DATA_DIR = "/projects/dwind/agents"
+DIR = "/glade/work/calebp/dwind_data/"
+DATA_DIR = "/glade/work/calebp/dwind_data/agents"
 
 WIND_RESOURCE_DIR = "/datasets/WIND/conus/v1.0.0/wtk_led_conus_2018_hourly.h5"
 SOLAR_RESOURCE_DIR = "/datasets/NSRDB/v3/nsrdb_2012.h5"
@@ -14,7 +14,7 @@ CORES = 104
 
 TECHS = ["wind"]
 CAMBIUM_VALUE = "cambium_grid_value"
-CAMBIUM_DATA_DIR = "/projects/dwind/data/cambium_processed"
+CAMBIUM_DATA_DIR = "/glade/work/calebp/dwind_data/cambium_processed"
 GENERATION_SCALE_OFFSET = {"solar" = 1000, "wind" = 1000}
 
 [siting]
@@ -36,7 +36,7 @@ max_fom_size_kw = 10000.0
 
 
 [rev]
-DIR = "/projects/dwind/data/rev/"
+DIR = "/glade/work/calebp/dwind_data/rev/"
 
 [rev.settings]
 azimuth_direction_to_degree = {"E" = 90, "SE" = 135, "S" = 180, "SW" = 225, "W" = 270}
@@ -44,8 +44,8 @@ wind = ["res", "com", "mid", "large"]
 solar = ["90_15", "90_25", "90_35", "90_45", "90_55", "135_15", "135_25", "135_35", "135_45", "135_55", "180_15", "180_25", "180_35", "180_45", "180_55", "225_15", "225_25", "225_35", "225_45", "225_55", "270_15", "270_25", "270_35", "270_45", "270_55"]
 
 [rev.generation]
-solar_DIR = "/projects/dwind/configs/rev/solar"
-wind_DIR = "/projects/dwind/configs/rev/wind"
+solar_DIR = "/glade/work/calebp/dwind_configs/rev/solar"
+wind_DIR = "/glade/work/calebp/dwind_configs/rev/wind"
 
 [rev.turbine_class_dict]
 "0" = "none"
@@ -63,7 +63,7 @@ wind_DIR = "/projects/dwind/configs/rev/wind"
 
 [cost]
 # All variables should be used as constructed as path / file like: config.cost.DIR / config.cost.XX
-DIR = "/projects/dwind/configs/costs/atb24"
+DIR = "/glade/work/calebp/dwind_configs/costs/atb24"
 
 RETAIL_RATE = "AEO23_Mid_Case_retail.csv"
 RETAIL_RATE_INPUT_TABLE = "AEO23_Mid_Case_retail.csv"

@@ -11,11 +11,9 @@ import pandas as pd
 from dwind.cli import utils
 from dwind.config import Sector
 
-
 app = typer.Typer()
 
 DWIND = Path("/projects/dwind/agents")
-
 
 @app.command()
 def combine_chunks(

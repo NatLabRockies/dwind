@@ -176,6 +176,7 @@ def interactive(
     ],
 ):
     """Run dwind locally, or via an interactive session where a SLURM job is not scheduled."""
+    sector = Sector(sector)
     agents = utils.load_agents(
         location=location, sector=sector.value, model_config=model_config, prepare=True
     )
