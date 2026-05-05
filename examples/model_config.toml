@@ -34,6 +34,30 @@ max_btm_size_kw = 5000.0
 min_fom_size_kw = 500.0
 max_fom_size_kw = 10000.0
 
+[sizing]
+DIR = "/glade/work/calebp/dwind_configs/sizing/wind/"
+LOOKUP = "lkup_block_to_pgid_2020.csv"
+
+[tariffs]
+DIR = "/glade/work/calebp/dwind_data/tariffs/"
+TABLE = "2025_tariffs.pqt"
+
+[load]
+DIR = "/glade/work/calebp/dwind_data/"
+LANDUSE = "parcel_landuse_load_application_mapping.csv"
+
+[consumption]
+DIR = "/glade/work/calebp/dwind_data/consumption/"
+SCALING = "2024/load_scaling_factors.csv"
+GROWTH = "aeo_load_growth_projections_nerc_2023_updt.csv"
+HOURLY = "crb_consumption_hourly.h5"
+
+[incentives]
+DIR = "/glade/work/calebp/dwind_data/incentives"
+TABLE = "2025_incentives.pqt"
+
+[misc]
+NERC_LOOKUP = "/glade/work/calebp/dwind_data/county_nerc_join.csv"
 
 [rev]
 DIR = "/glade/work/calebp/dwind_data/rev/"
@@ -46,6 +70,7 @@ solar = ["90_15", "90_25", "90_35", "90_45", "90_55", "135_15", "135_25", "135_3
 [rev.generation]
 solar_DIR = "/glade/work/calebp/dwind_configs/rev/solar"
 wind_DIR = "/glade/work/calebp/dwind_configs/rev/wind"
+LOOKUP = "lkup_rev_index_2012_to_2018.csv"
 
 [rev.turbine_class_dict]
 "0" = "none"
@@ -64,6 +89,7 @@ wind_DIR = "/glade/work/calebp/dwind_configs/rev/wind"
 [cost]
 # All variables should be used as constructed as path / file like: config.cost.DIR / config.cost.XX
 DIR = "/glade/work/calebp/dwind_configs/costs/atb24"
+OLD_DIR = "/glade/work/calebp/dwind_configs/costs/atb20"
 
 RETAIL_RATE = "AEO23_Mid_Case_retail.csv"
 RETAIL_RATE_INPUT_TABLE = "AEO23_Mid_Case_retail.csv"

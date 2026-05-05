@@ -170,7 +170,7 @@ class Agents:
         columns.
         """
         census_tracts = pd.read_csv(
-            "/projects/dwind/configs/sizing/wind/lkup_block_to_pgid_2020.csv",
+            f"{self.config.sizing.DIR}/{self.config.sizing.LOOKUP}",
             usecols=["pgid", "fips_block"],
             dtype=str,
             dtype_backend="pyarrow",
@@ -187,7 +187,7 @@ class Agents:
         if self.resource_year != 2018:
             return
 
-        index_file = "/projects/dwind/configs/rev/wind/lkup_rev_index_2012_to_2018.csv"
+        index_file = f"{self.config.rev.generation.wind_DIR}/{self.config.rev.generation.LOOKUP}"
         rev_index_map = (
             pd.read_csv(
                 index_file,
@@ -326,7 +326,7 @@ class Model:
 
         tariff = (
             pd.read_parquet(
-                "/projects/dwind/data/tariffs/2025_tariffs.pqt", dtype_backend="pyarrow"
+                f"{self.config.tariffs.DIR}/{self.config.tariffs.TABLE}", dtype_backend="pyarrow"
             )
             .loc[rate_ids]
             .reset_index(drop=False)  # , names="rate_id_alias")
@@ -347,11 +347,11 @@ class Model:
         ).astype("uint8[pyarrow]")
 
         # update load based on scaling factors from 2024 consumption data
-        f = "/projects/dwind/data/parcel_landuse_load_application_mapping.csv"
+        f = f"{self.config.load.DIR}/{self.config.load.LANDUSE}"
         bldg_types = pd.read_csv(f, usecols=["land_use", "bldg_type"], dtype_backend="pyarrow")
         self.agents = self.agents.merge(bldg_types, on="land_use", how="left")
 
-        f = "/projects/dwind/data/consumption/2024/load_scaling_factors.csv"
+        f = f"{self.config.consumption.DIR}/{self.config.consumption.SCALING}"
         sfs = pd.read_csv(
             f,
             dtype={"state_fips": str},
@@ -366,7 +366,7 @@ class Model:
         if self.year > 2025:
             # get county_id to nerc_region_abbr lkup
             # from diffusion_shared.county_nerc_join (dgen_db_fy23q4_ss23)
-            f = "/projects/dwind/data/county_nerc_join.csv"
+            f = self.config.misc.NERC_LOOKUP
             nerc_regions = pd.read_csv(
                 f, usecols=["county_id", "nerc_region_abbr"], dtype_backend="pyarrow"
             )
@@ -374,7 +374,7 @@ class Model:
 
             # get load growth projects from AEO
             # from diffusion_shared.aeo_load_growth_projections_nerc_2023_updt (dgen_db_fy23q4_ss23)
-            f = "/projects/dwind/data/consumption/aeo_load_growth_projections_nerc_2023_updt.csv"
+            f = f"{self.config.consumption.DIR}/{self.config.consumption.GROWTH}"
             load_growth = pd.read_csv(f, dtype_backend="pyarrow")
             load_growth = load_growth.loc[
                 load_growth["scenario"].eq("AEO2023 Reference case")

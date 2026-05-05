@@ -12,11 +12,7 @@ from rich.console import Console
 
 from dwind.config import Year
 
-
-DWIND = Path("/projects/dwind/agents")
-
 console = Console()
-
 
 def year_callback(ctx: typer.Context, param: typer.CallbackParam, value: int):
     """Typer helper to validate the year input.
@@ -76,7 +72,7 @@ def load_agents(
         raise ValueError("One of `file_name` or `location` and `sector` must be provided.")
 
     f_agents = (
-        file_name if file_name is not None else DWIND / f"{location}/agents_dwind_{sector}.parquet"
+        file_name if file_name is not None else model_config.project.DIR / f"{location}/agents_dwind_{sector}.parquet"
     )
     if not isinstance(f_agents, Path):
         f_agents = Path(f_agents).resolve()

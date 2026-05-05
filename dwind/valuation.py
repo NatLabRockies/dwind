@@ -1635,7 +1635,7 @@ def worker(row: pd.Series, config: Configuration, sector: Sector) -> tuple[str, 
                 continue
 
             if sector is Sector.BTM:
-                with h5.File("/projects/dwind/data/crb_consumption_hourly.h5") as hf:
+                with h5.File(f"{self.config.consumption.DIR}/{self.config.consumption.HOURLY}") as hf:
                     c, h = row.crb_model_index, row.hdf_index
                     consumption_hourly = hf["consumption"][c, h, :].astype(np.float32)
                     consumption_hourly /= 1e8
