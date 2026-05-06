@@ -55,9 +55,8 @@ def config_costs(scenario: Scenario, year: Year) -> dict:
     Returns:
         dict: Dictionary of ATB assumptions to be used for PySAM's cost inputs.
     """
-    f = Path(
-        f"/projects/dwind/configs/costs/atb24/ATB24_costs_{scenario.value}_{year.value}.json"
-    ).resolve()
+    fstr = f"ATB24_costs_{scenario.value}_{year.value}.json"
+    f = Path(__file__).resolve().parent.parent / "data" / fstr
     with f.open("r") as f_in:
         cost_inputs = json.load(f_in)
 
@@ -152,15 +151,16 @@ def config_financial(scenario: Scenario, inc_scenario: IncentiveScenario, year: 
     Returns:
         dict: Dictionary of ATB assumptions to be used for configuration PySAM.
     """
+    cost_dir = Path(__file__).resolve().parent.parent / "data"
     if year is Year._2025:
-        f = f"/projects/dwind/configs/costs/atb24/ATB24_financing_baseline_{year}.json"
+        f = cost_dir / f"ATB24_financing_baseline_{year}.json"
         i = Path("/projects/dwind/data/incentives/2025_incentives.pqt").resolve()
         incentives = pd.read_parquet(i, dtype_backend="pyarrow")
     elif year in (Year._2035, Year._2040):
-        f = "/projects/dwind/configs/costs/atb24/ATB24_financing_baseline_2035.json"
+        f = cost_dir / "ATB24_financing_baseline_2035.json"
     else:
         # use old assumptions
-        f = "/projects/dwind/configs/costs/atb20/ATB20_financing_baseline_2035.json"
+        f = cost_dir / "ATB20_financing_baseline_2035.json"
     f = Path(f).resolve()
 
     with f.open("r") as f_in:
