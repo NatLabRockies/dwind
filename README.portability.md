@@ -46,3 +46,17 @@ cd dwind
 conda activate dwind
 dwind run config examples/larimer_county_btm_baseline_2025.toml --no-use-hpc
 ```
+
+### AWS Setup (on derecho)
+
+```
+module load conda
+conda activate dwind
+pip install awscli s3fs
+
+# fill ~/.aws/credentials
+
+# initial data upload
+aws s3 sync /glade/work/calebp/dwind_configs s3://dwind-data-test/
+aws s3 sync /glade/work/calebp/dwind_data s3://dwind-data-test/
+```
