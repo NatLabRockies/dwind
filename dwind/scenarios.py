@@ -154,7 +154,7 @@ def config_financial(scenario: Scenario, inc_scenario: IncentiveScenario, year: 
     cost_dir = Path(__file__).resolve().parent.parent / "data"
     if year is Year._2025:
         f = cost_dir / f"ATB24_financing_baseline_{year}.json"
-        i = Path("/projects/dwind/data/incentives/2025_incentives.pqt").resolve()
+        i = Path(f"{config.incentives.DIR}/{config.incentives.TABLE}").resolve()
         incentives = pd.read_parquet(i, dtype_backend="pyarrow")
     elif year in (Year._2035, Year._2040):
         f = cost_dir / "ATB24_financing_baseline_2035.json"
