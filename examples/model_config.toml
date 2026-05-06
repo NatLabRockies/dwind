@@ -88,45 +88,26 @@ LOOKUP = "lkup_rev_index_2012_to_2018.csv"
 "1500.0" = "large"
 
 [cost]
-# All variables should be used as constructed as path / file like: config.cost.DIR / config.cost.XX
-DIR = "/glade/work/calebp/dwind_configs/costs/atb24"
-OLD_DIR = "/glade/work/calebp/dwind_configs/costs/atb20"
-
 RETAIL_RATE = "AEO23_Mid_Case_retail.csv"
 RETAIL_RATE_INPUT_TABLE = "AEO23_Mid_Case_retail.csv"
 WHOLESALE_RATE_INPUT_TABLE = "AEO23_Mid_Case_wholesale.csv"
-FINANCIAL_INPUTS_TABLE = "ATB24_financing_baseline_2025.csv"
+FINANCIAL_INPUTS_TABLE = "ATB24_financing_baseline_2025.json"
 DEPREC_INPUTS_TABLE = "ATB24_depc_factors.csv"
 
 WIND_PRICE_INPUT_TABLE = "ATB24_wind_prices.csv"
-WIND_TECH_INPUT_TABLE = "wind_tech_performance_1_reference"
-WIND_DERATE_INPUT_TABLE = "wind_derate_sched_1_reference"
+WIND_TECH_INPUT_TABLE = "wind_tech_performance_1_reference.csv"
+WIND_DERATE_INPUT_TABLE = "wind_derate_sched_1_reference.csv"
 
-PV_PRICE_INPUT_TABLE = "pv_price_atb20_mid"
-PV_TECH_INPUT_TABLE = "pv_tech_performance_defaultFY19"
+PV_PRICE_INPUT_TABLE = "pv_price_atb20_mid.csv"
+PV_TECH_INPUT_TABLE = "pv_tech_performance_defaultFY19.csv"
 
-PV_PLUS_BATT_PRICE_INPUT_TABLE = "pv_plus_batt_prices_FY20_mid_pv_mid_batt"
-BATT_PRICE_INPUT_TABLE = "batt_prices_FY20_mid"
-BATT_TECH_INPUT_TABLE = "batt_tech_performance_SunLamp17"
+PV_PLUS_BATT_PRICE_INPUT_TABLE = "pv_plus_batt_prices_FY20_mid_pv_mid_batt.csv"
+BATT_PRICE_INPUT_TABLE = "batt_prices_FY20_mid.csv"
+BATT_TECH_INPUT_TABLE = "batt_tech_performance_SunLamp17.csv"
 
 [btm]
 SYS_SIZE_TARGET_NO_NEM = 0.5
 SYS_OVERSIZE_LIMIT_NO_NEM = 1.0
-
-[sql]
-USER_PG = "user"
-PASSWORD_PG = "password"
-
-USER_SAGE = "user"
-PASSWORD_SAGE = "password"
-
-#PARCELS_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@1lv11gispg02.nrel.gov:5432/parcels"
-#ATLAS_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@plv11dnpg01.nrel.gov:5432/dgen_db_fy17q3_dwind"
-#LIGHTBOX_PG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@gds_publish.nrel.gov:5432/ref_lightbox"
-#MS_BG_CON_STR = "postgresql://{USER_PG}:{PASSWORD_PG}@gds_publish.nrel.gov:5432/ref_microsoft"
-#SAGE_PG_CON_STR = "postgresql://{USER_SAGE}:{PASSWORD_SAGE}@sage.hpc.nrel.gov:5432/dgensfs"
-
-GENERATOR_LOOKUP_TABLE = "diffusion_resource_wind.dwfs_parcel_resource_lkup_test"
 
 [pysam]
 [pysam.outputs]
