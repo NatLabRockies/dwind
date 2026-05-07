@@ -30,9 +30,7 @@ from dwind.config import (
     IncentiveScenario,
 )
 
-
 log = logging.getLogger("dwfs")
-
 
 class ValueFunctions:
     """Primary model calculation engine responsible for the computation of individual agents."""
@@ -64,23 +62,18 @@ class ValueFunctions:
         self.return_format = return_format
 
         self.CAMBIUM_SCENARIO = scenarios.config_cambium(self.scenario)
-        self.COST_INPUTS = scenarios.config_costs(self.scenario, self.year)
+        self.COST_INPUTS = scenarios.config_costs(self.scenario, self.year, self.config)
         self.PERFORMANCE_INPUTS = scenarios.config_performance(self.scenario, self.year)
         self.FINANCIAL_INPUTS = scenarios.config_financial(
-            self.scenario, self.inc_scenario, self.year
+            self.scenario, self.inc_scenario, self.year, self.config
         )
 
         self.load()
 
     def load(self):
-        """Loads all the core data from CSV and SQL for configuring PySAM."""
+        """Loads all the core data from CSVs for configuring PySAM."""
         _load_csv = functools.partial(loader.load_df, year=self.year)
-        _load_sql = functools.partial(
-            loader.load_df,
-            year=self.year,
-            sql_constructor=self.config.sql.ATLAS_PG_CON_STR,
-        )
-        cost_dir = self.config.cost.DIR
+        cost_dir = pathlib.Path(__file__).resolve().parent.parent / "data"
 
         self.retail_rate_inputs = _load_csv(cost_dir / self.config.cost.RETAIL_RATE_INPUT_TABLE)
         self.wholesale_rate_inputs = _load_csv(
@@ -92,18 +85,18 @@ class ValueFunctions:
 
         if "wind" in self.config.project.settings.TECHS:
             self.wind_price_inputs = _load_csv(cost_dir / self.config.cost.WIND_PRICE_INPUT_TABLE)
-            self.wind_tech_inputs = _load_sql(self.config.cost.WIND_TECH_INPUT_TABLE)
-            self.wind_derate_inputs = _load_sql(self.config.cost.WIND_DERATE_INPUT_TABLE)
+            self.wind_tech_inputs = _load_csv(cost_dir / self.config.cost.WIND_TECH_INPUT_TABLE)
+            self.wind_derate_inputs = _load_csv(cost_dir / self.config.cost.WIND_DERATE_INPUT_TABLE)
 
         if "solar" in self.config.project.settings.TECHS:
-            self.pv_price_inputs = _load_sql(self.config.cost.PV_PRICE_INPUT_TABLE)
-            self.pv_tech_inputs = _load_sql(self.config.cost.PV_TECH_INPUT_TABLE)
-            self.pv_plus_batt_price_inputs = _load_sql(
+            self.pv_price_inputs = _load_csv(cost_dir / self.config.cost.PV_PRICE_INPUT_TABLE)
+            self.pv_tech_inputs = _load_csv(cost_dir / self.config.cost.PV_TECH_INPUT_TABLE)
+            self.pv_plus_batt_price_inputs = _load_csv(cost_dir /
                 self.config.cost.PV_PLUS_BATT_PRICE_INPUT_TABLE
             )
 
-        self.batt_price_inputs = _load_sql(self.config.cost.BATT_PRICE_INPUT_TABLE)
-        self.batt_tech_inputs = _load_sql(self.config.cost.BATT_TECH_INPUT_TABLE)
+        self.batt_price_inputs = _load_csv(cost_dir / self.config.cost.BATT_PRICE_INPUT_TABLE)
+        self.batt_tech_inputs = _load_csv(cost_dir / self.config.cost.BATT_TECH_INPUT_TABLE)
 
     def _process_costs(self, cost_inputs: dict, tech: str, sector: str) -> pd.DataFrame:
         """Convert the costs dictionary data into a dataframe.
@@ -1418,17 +1411,17 @@ def process_btm(
     row["additional_pysam_outputs"] = {k: getattr(loan.Outputs, k) for k in pysam_outputs}
 
     # run root finding algorithm to find breakeven cost based on calculated NPV
-    out, _ = find_breakeven(
-        row=row,
-        loan=loan,
-        pysam_outputs=pysam_outputs,
-        batt_costs=batt_costs,
-        method="newton",
-        pre_calc_bounds_and_tolerances=False,
-        **{"x0": 10000.0, "full_output": True},
-    )
-
-    row["breakeven_cost_usd_p_kw"] = out
+    #out, _ = find_breakeven(
+    #    row=row,
+    #    loan=loan,
+    #    pysam_outputs=pysam_outputs,
+    #    batt_costs=batt_costs,
+    #    method="newton",
+    #    pre_calc_bounds_and_tolerances=False,
+    #    **{"x0": 10000.0, "full_output": True},
+    #)
+    #
+    row["breakeven_cost_usd_p_kw"] = None
 
     return row
 
@@ -1577,14 +1570,14 @@ def process_fom(
         row["additional_pysam_outputs"] = {k: getattr(financial.Outputs, k) for k in pysam_outputs}
 
         # run root finding algorithm to find breakeven cost based on calculated NPV
-        out, _ = find_breakeven_fom(
-            row=row,
-            financial=financial,
-            pysam_outputs=pysam_outputs,
-            pre_calc_bounds_and_tolerances=False,
-            **{"method": "newton", "x0": 10000.0, "full_output": True},
-        )
-        row["breakeven_cost_usd_p_kw"] = out
+        #out, _ = find_breakeven_fom(
+        #    row=row,
+        #    financial=financial,
+        #    pysam_outputs=pysam_outputs,
+        #    pre_calc_bounds_and_tolerances=False,
+        #    **{"method": "newton", "x0": 10000.0, "full_output": True},
+        #)
+        row["breakeven_cost_usd_p_kw"] = None
 
     return row
 
@@ -1635,7 +1628,7 @@ def worker(row: pd.Series, config: Configuration, sector: Sector) -> tuple[str, 
                 continue
 
             if sector is Sector.BTM:
-                with h5.File("/projects/dwind/data/crb_consumption_hourly.h5") as hf:
+                with h5.File(f"{config.consumption.DIR}/{config.consumption.HOURLY}") as hf:
                     c, h = row.crb_model_index, row.hdf_index
                     consumption_hourly = hf["consumption"][c, h, :].astype(np.float32)
                     consumption_hourly /= 1e8

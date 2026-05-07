@@ -11,11 +11,7 @@ import pandas as pd
 from dwind.cli import utils
 from dwind.config import Sector
 
-
 app = typer.Typer()
-
-DWIND = Path("/projects/dwind/agents")
-
 
 @app.command()
 def combine_chunks(
@@ -63,7 +59,7 @@ def combine_chunks(
     file_name = "results" if file_name is None else file_name
     result_agents = pd.concat([pd.read_parquet(f) for f in result_files])
     load_df = pd.read_csv(
-        "/projects/dwind/data/parcel_landuse_load_application_mapping.csv",
+        f"{self.config.load.DIR}/{self.config.load.LANDUSE}",
         usecols=["land_use", "application"],
     )
     result_agents.drop(columns="application").merge(load_df, on="land_use", how="left")

@@ -247,7 +247,7 @@ class Configuration(Mapping):
             if isinstance(value, dict):
                 self.__setattr__(key, Configuration(value, initial=False))
             else:
-                if "DIR" in key:
+                if ("DIR" in key) and ("s3://" not in value):
                     self.__setattr__(key, Path(value).resolve())
                 else:
                     self.__setattr__(key, value)

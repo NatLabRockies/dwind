@@ -1,13 +1,14 @@
 location = "colorado_larimer"
 sector = "btm"
 scenario = "baseline"
+incentives = "standard"
 year = 2025
-repository = "/path/to/cloned/dwind"
-dir_out = "/path/to/save/logs_and_data"
-nodes = 1
-allocation = "dwind"
-memory = 120  # GB
-walltime = 20  # hrs
-feature = "--qos=normal"
-env = "/path/to/conda/environment/"
-model_config = "/path/to/model_configuraiton_file"
+#repository = "/glade/u/home/calebp/dwind"
+dir_out = "/glade/u/home/calebp/dwind_output"
+#nodes = 1
+#allocation = "UCSG0003"
+#memory = 120  # GB
+#walltime = 20  # hrs
+#feature = "--qos=normal"
+#env = "/glade/work/calebp/conda-envs/dwind"
+model_config = "/glade/u/home/calebp/dwind/examples/model_config.toml"

@@ -4,7 +4,6 @@ channels:
   - nrel
 dependencies:
   - python=3.11
-  - nrel-pysam>=7.1
   - nrel-rex
   - pandas
   - numpy
@@ -16,6 +15,7 @@ dependencies:
   - pip
   - pyarrow
   - pip:
+    - nrel-pysam>=7.1
     - h5pyd
     - typer
     - "."
