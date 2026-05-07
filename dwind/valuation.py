@@ -30,9 +30,7 @@ from dwind.config import (
     IncentiveScenario,
 )
 
-
 log = logging.getLogger("dwfs")
-
 
 class ValueFunctions:
     """Primary model calculation engine responsible for the computation of individual agents."""
@@ -1413,17 +1411,17 @@ def process_btm(
     row["additional_pysam_outputs"] = {k: getattr(loan.Outputs, k) for k in pysam_outputs}
 
     # run root finding algorithm to find breakeven cost based on calculated NPV
-    out, _ = find_breakeven(
-        row=row,
-        loan=loan,
-        pysam_outputs=pysam_outputs,
-        batt_costs=batt_costs,
-        method="newton",
-        pre_calc_bounds_and_tolerances=False,
-        **{"x0": 10000.0, "full_output": True},
-    )
-
-    row["breakeven_cost_usd_p_kw"] = out
+    #out, _ = find_breakeven(
+    #    row=row,
+    #    loan=loan,
+    #    pysam_outputs=pysam_outputs,
+    #    batt_costs=batt_costs,
+    #    method="newton",
+    #    pre_calc_bounds_and_tolerances=False,
+    #    **{"x0": 10000.0, "full_output": True},
+    #)
+    #
+    row["breakeven_cost_usd_p_kw"] = None
 
     return row
 
@@ -1572,14 +1570,14 @@ def process_fom(
         row["additional_pysam_outputs"] = {k: getattr(financial.Outputs, k) for k in pysam_outputs}
 
         # run root finding algorithm to find breakeven cost based on calculated NPV
-        out, _ = find_breakeven_fom(
-            row=row,
-            financial=financial,
-            pysam_outputs=pysam_outputs,
-            pre_calc_bounds_and_tolerances=False,
-            **{"method": "newton", "x0": 10000.0, "full_output": True},
-        )
-        row["breakeven_cost_usd_p_kw"] = out
+        #out, _ = find_breakeven_fom(
+        #    row=row,
+        #    financial=financial,
+        #    pysam_outputs=pysam_outputs,
+        #    pre_calc_bounds_and_tolerances=False,
+        #    **{"method": "newton", "x0": 10000.0, "full_output": True},
+        #)
+        row["breakeven_cost_usd_p_kw"] = None
 
     return row
 
