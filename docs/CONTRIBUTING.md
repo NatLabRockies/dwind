@@ -48,7 +48,7 @@ information.
    ```
 
 3. For general development, create a branch off of `dev`, for a hot fix/patch, create a branch off
-   of `main`. Use either example as a base. In general it's common to indicate the type of development with text before the slash such as `fix/`, `patch/`, `feature/`, `ehancement/`, etc., followed
+   of `main`. Use either example as a base. In general it's common to indicate the type of development with text before the slash such as `fix/`, `patch/`, `feature/`, `enhancement/`, etc., followed
    by a short dash-separate description of the contribution, such as `enhancement/pandas-v3-upgrade`.
    See below for an example of creating a new branch based off either `dev` or `main`.
 
@@ -168,7 +168,7 @@ met the following steps should be taken to create a new release
 
 1. On `dev`, bump the version appropriately, see the
    [semantic versioning guidelines](https://semver.org/) for details.
-   - Semantic Versionioning follows a MAJOR.MINOR.PATCH versioning pattern, and new functionality
+   - Semantic Versioning follows a MAJOR.MINOR.PATCH versioning pattern, and new functionality
      should get a minor release, and fixes/minor updates should get a patch release.
 2. Update the `## Unreleased` title to the new version and release date.
 3. Open a pull request from `dev` into `main`.
@@ -201,7 +201,7 @@ met the following steps should be taken to create a new release
 
 ### Patches
 
-Any pull requests directly into the main branch that alter the H2Integrate model (excludes anything
+Any pull requests directly into the main branch that alter the dwind model (excludes anything
 in `docs/`, or outside of `dwind/` and `tests/`), should be sure to follow the instructions
 below:
 
