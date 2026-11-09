@@ -492,8 +492,6 @@ def find_cf_from_rev_wind(
 def fetch_cambium_values(
     row: pd.Series,
     generation_hourly: np.ndarray,
-    cambium_dir: pathlib.Path,
-    cambium_value: str,
     lower_thresh: float = 0.01,
 ) -> list[list[float, float], ...]:
     """Retrieves the Cambium values as an 8760 x 2 tuple of tuples.
@@ -501,8 +499,6 @@ def fetch_cambium_values(
     Args:
         row (pd.Series): An individual row of the agent DataFrame.
         generation_hourly (np.ndarray): Hourly generation data for a single year (length 8760).
-        cambium_dir (pathlib.Path): Full file path for the Cambium data.
-        cambium_value (str): Which Cambium value to retrieve.
         lower_thresh (float, optional): Lower threshold for the MerchantPlant calculations.
             Defaults to 0.01.
 
@@ -510,26 +506,7 @@ def fetch_cambium_values(
         list[list[float, float], ...]: Hourly, single year (8760) of the clipped generation, in MW,
             and value, in $/MW.
     """
-    # read processed cambium dataframe from pickle
-    cambium_f = cambium_dir / f"{row['cambium_scenario']}_pca_{row['yr']}_processed.pqt"
-    cambium_df = pd.read_parquet(cambium_f, dtype_backend="pyarrow")
-
-    cambium_df["year"] = cambium_df["year"].astype(str)
-    cambium_df["pca"] = cambium_df["pca"].astype(str)
-    cambium_df["variable"] = cambium_df["variable"].astype(str)
-
-    # filter on pca, desired year, cambium variable
-    mask = (
-        (cambium_df["year"] == str(row["yr"]))
-        & (cambium_df["pca"] == str(row["ba"]))
-        & (cambium_df["variable"] == cambium_value)
-    )
-
-    cambium_output = cambium_df[mask]
-    cambium_output = cambium_output.reset_index(drop=True)
-    cambium_output = cambium_output["value"].values[0]
-
-    # duplicate gen and cambium_output * analysis_period
+    cambium_output = row["cambium_value"]
     analysis_period = row["analysis_period"]
     generation_hourly = list(generation_hourly) * analysis_period
     cambium_output = list(cambium_output) * analysis_period
@@ -1658,12 +1635,7 @@ def worker(row: pd.Series, config: Configuration, sector: Sector) -> tuple[str, 
                 )
             elif sector is Sector.FOM:
                 # fetch 8760 cambium values for FOM
-                market_profile = fetch_cambium_values(
-                    row,
-                    generation_hourly,
-                    config.project.settings.CAMBIUM_DATA_DIR,
-                    config.project.settings.CAMBIUM_VALUE,
-                )
+                market_profile = fetch_cambium_values(row, generation_hourly)
 
                 row = process_fom(
                     row=row,

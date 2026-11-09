@@ -1,9 +1,10 @@
 # Changelog
 
-## v0.5.1 - 1 August 2026
+## v0.5.1 -  9 November 2026
 
 - Minor bug fix for PySAM utility rate fixed charge.
 - Change output file naming convention to reflect incentive scenario.
+- Move Cambium assignment to agent preparation.
 
 ## v0.5 - 3 June 2026
 
