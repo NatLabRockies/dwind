@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.5.1 -  9 November 2026
+## v0.5.1 -  16 November 2026
 
 - Minor bug fix for PySAM utility rate fixed charge.
 - Change output file naming convention to reflect incentive scenario.
